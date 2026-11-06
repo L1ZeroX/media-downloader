@@ -235,11 +235,13 @@ class Application(ctk.CTk):
         self.preview()
 
     def preview(self):
+        from .preview_theme import apply_preview_colors
         self._preview_generation = getattr(self, "_preview_generation", 0) + 1
         generation = self._preview_generation
         selection = self.tree.selection()
         self.photo = None
         if not selection or selection[0] not in self.items:
+            apply_preview_colors(self)
             self.preview_image.configure(image="", text="動画を選択すると\nサムネイルを表示します", width=32, height=7)
             self.preview_title.configure(text="動画が選択されていません")
             self.preview_time.configure(text="")
@@ -256,6 +258,7 @@ class Application(ctk.CTk):
             picture = Image.open(io.BytesIO(base64.b64decode(item["image"])))
             picture.thumbnail((260, 147))
             picture = picture.convert("RGB")
+            apply_preview_colors(self, picture, item["image"])
             background = Image.new("RGB", picture.size, "#262a33" if self.dark_mode.get() else "#f0f3f8")
             from .motion import animate
             def show(amount):
@@ -265,6 +268,7 @@ class Application(ctk.CTk):
                 self.preview_image.configure(image=self.photo, text="", width=260, height=147)
             animate(self, "thumbnail", .18, show)
         except Exception:
+            apply_preview_colors(self)
             self.preview_image.configure(image="", text="サムネイルを取得中…" if item["state"] == "情報取得中" else "サムネイルを取得できません", width=32, height=7)
 
     def fetch(self):

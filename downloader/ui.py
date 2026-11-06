@@ -136,14 +136,19 @@ def build(app):
     card = WallpaperFrame(center, fg_color=CARD, corner_radius=24, width=290)
     app.preview_card = card
     card.grid(row=0, column=1, sticky="nsew")
-    label(card, "プレビュー", size=14, bold=True).pack(anchor="w", padx=20, pady=(16, 10))
+    app.preview_heading = WallpaperLabel(card, text="プレビュー", font=(FONT, 14, "bold"),
+                                        fg_color=BUTTON, text_color=TEXT, corner_radius=18,
+                                        width=120, height=36, anchor="center")
+    app.preview_heading.pack(anchor="w", padx=16, pady=(16, 10))
     thumb = ctk.CTkFrame(card, fg_color=THUMB, corner_radius=18)
     thumb.pack(fill="x", padx=16)
     app.preview_image = tk.Label(thumb, text="動画を選ぶと\nサムネイルを表示します", bg=color(THUMB, app), fg=color(MUTED, app),
                                  width=32, height=7, font=(FONT, 10))
     app.preview_image.pack(padx=8, pady=8)
-    app.preview_title = label(card, "動画が選択されていません", size=14, bold=True, wraplength=250, justify="left")
-    app.preview_title.pack(anchor="w", padx=20, pady=(12, 2))
+    app.preview_title = WallpaperLabel(card, text="動画が選択されていません", font=(FONT, 14, "bold"),
+                                      fg_color=BUTTON, text_color=TEXT, corner_radius=20, width=260, height=50,
+                                      wraplength=240, anchor="w", justify="left", pady=10)
+    app.preview_title.pack(fill="x", padx=16, pady=(12, 6))
     app.preview_time = label(card, "", size=12, color=MUTED)
     app.preview_time.pack(anchor="w", padx=20)
     app.preview_error = label(card, "", size=11, color=("#d23e4a", "#ff8590"), wraplength=250, justify="left")

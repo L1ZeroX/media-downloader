@@ -14,6 +14,43 @@ from downloader.window_shape import windows_api
 
 
 class GuiStateTests(unittest.TestCase):
+    def test_thumbnail_badges_follow_selection_cache_and_missing_images(self):
+        from PIL import Image
+        import base64
+        import io
+        from downloader import preview_theme
+        from downloader.palette import BUTTON, TEXT
+        from downloader.popup_theme import luminance
+        def thumbnail(color):
+            stream = io.BytesIO()
+            Image.new("RGB", (160, 90), color).save(stream, format="PNG")
+            return base64.b64encode(stream.getvalue()).decode()
+        self.app.animations_enabled.set(False)
+        self.app.deiconify(); self.app.update()
+        for key, color in (("purple", "#795780"), ("green", "#306d49")):
+            self.add(key)
+            self.app.items[key]["image"] = thumbnail(color)
+        self.app.tree.selection_set("purple"); self.app.preview(); self.app.update()
+        purple = self.app.preview_title.cget("fg_color")
+        self.assertEqual(purple, self.app.preview_heading.cget("fg_color"))
+        self.assertGreaterEqual(1.05 / (luminance(purple) + .05), 4.5)
+        self.assertGreater(self.app.preview_title.cget("corner_radius"), 0)
+        with patch.object(preview_theme, "thumbnail_colors", wraps=preview_theme.thumbnail_colors) as extract:
+            self.app.preview()
+            self.app.wallpaper.set_image(Image.new("RGB", (100, 100), "#a01010"))
+            self.app.wallpaper.paint()
+            extract.assert_not_called()
+            self.assertEqual(purple, self.app.preview_title.cget("fg_color"))
+        self.app.tree.selection_set("green"); self.app.preview()
+        self.assertNotEqual(purple, self.app.preview_title.cget("fg_color"))
+        self.app.dark_mode.set(False); self.app.theme_changed()
+        self.assertEqual(self.app.preview_title.cget("text_color"), "#ffffff")
+        self.app.items["green"]["image"] = "invalid image"
+        self.app.preview()
+        self.assertEqual(self.app.preview_title.cget("fg_color"), BUTTON[0])
+        self.app.tree.selection_remove(self.app.tree.selection()); self.app.preview()
+        self.assertEqual(self.app.preview_heading.cget("text_color"), TEXT[0])
+
     def test_queue_headings_follow_wallpaper_and_cache_rounded_images(self):
         from PIL import Image
         from tkinter import ttk
