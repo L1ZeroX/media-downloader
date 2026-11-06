@@ -9,14 +9,13 @@ import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
-from .version import IS_BETA
 
 ROOT = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent
-CONFIG_DIR = Path(os.environ.get("APPDATA", Path.home() / ".config")) / ("SimpleMediaDownloaderBeta" if IS_BETA else "SimpleMediaDownloader")
+CONFIG_DIR = Path(os.environ.get("APPDATA", Path.home() / ".config")) / "SimpleMediaDownloader"
 VIDEO_QUALITIES = ("1080p以下", "720p以下", "最高")
 AUDIO_QUALITIES = ("192kbps", "320kbps", "128kbps")
 INTERPOLATED_FPS = "60fps（フレーム補間）"
-FRAME_RATES = ("元のまま", "24fps", "30fps", "60fps") + ((INTERPOLATED_FPS,) if IS_BETA else ())
+FRAME_RATES = ("元のまま", "24fps", "30fps", "60fps", INTERPOLATED_FPS)
 ENCODING_MODES = ("自動（高速）", "GPU優先", "CPU高速")
 URL_INPUT_HEIGHTS = {"コンパクト": 72, "標準": 112, "大きめ": 180}
 
@@ -46,7 +45,10 @@ class Settings:
     @classmethod
     def load(cls, path: Path | None = None) -> Settings:
         try:
-            raw = json.loads((path or CONFIG_DIR / "settings.json").read_text(encoding="utf-8"))
+            source = path or CONFIG_DIR / "settings.json"
+            if path is None and not source.exists():
+                source = CONFIG_DIR.parent / "SimpleMediaDownloaderBeta" / "settings.json"
+            raw = json.loads(source.read_text(encoding="utf-8"))
             result = cls(**{k: v for k, v in raw.items() if k in cls.__dataclass_fields__ and isinstance(v, str)})
             if result.media_format not in ("MP4", "MP3"):
                 result.media_format = "MP4"

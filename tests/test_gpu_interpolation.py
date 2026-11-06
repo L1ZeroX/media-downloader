@@ -43,17 +43,20 @@ class GPUPlanTests(unittest.TestCase):
                 self.assertEqual(run.call_args.args[3], "フレーム補間中（CPU）")
                 self.assertTrue(any("GPU unavailable" in str(call) for call in emit.call_args_list))
 
-    def test_stable_and_cpu_mode_never_start_rife(self):
+    def test_gpu_available_in_both_channels_but_cpu_mode_skips_rife(self):
         info = {"streams":[{"index":0,"codec_type":"video","codec_name":"h264","pix_fmt":"yuv420p",
                              "avg_frame_rate":"30/1","width":160,"height":96}],"format":{"duration":"2"}}
-        for beta, mode in ((False,"GPU優先"),(True,"CPU高速")):
+        for beta, mode in ((False,"GPU優先"),(True,"GPU優先"),(False,"CPU高速"),(True,"CPU高速")):
             with self.subTest(beta=beta,mode=mode), \
                  patch("downloader.worker.probe", side_effect=[info,{"streams":[{**info["streams"][0],"avg_frame_rate":"60/1"}]}]), \
                  patch("downloader.version.IS_BETA", beta), patch("downloader.worker.choose_encoder",return_value="libx264"), \
                  patch("downloader.gpu_interpolation.interpolate_video") as gpu, \
                  patch("downloader.worker.emit"), patch("downloader.worker.run_conversion"):
                 convert(Path("source.mp4"),Path("out.mp4"),{"ffmpeg":"f","ffprobe":"p"},"MP4","720p以下",60,mode,True)
-                gpu.assert_not_called()
+                if mode == "CPU高速":
+                    gpu.assert_not_called()
+                else:
+                    gpu.assert_called_once()
 
 
 @unittest.skipUnless(os.environ.get("PANDORA_TEST_GPU") == "1", "Opt-in Vulkan GPU integration")

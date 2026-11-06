@@ -313,8 +313,7 @@ def convert(source: Path, target: Path, tools: dict, media_format: str, quality:
         phase = "CPU変換中" if encoder == "libx264" else "GPU変換中"
         if "minterpolate=" in " ".join(args):
             phase = "フレーム補間中（CPU）"
-            from .version import IS_BETA
-            if IS_BETA and encoding_mode != "CPU高速":
+            if encoding_mode != "CPU高速":
                 from .gpu_interpolation import interpolate_video
                 try:
                     interpolate_video(source, target, tools, metadata, quality, encoder, encoder_args(encoder), emit)

@@ -198,8 +198,7 @@ def build(app):
     app.quality_combo = setting(1, "画質 / 音質", app.quality, VIDEO_QUALITIES if app.media_format.get() == "MP4" else AUDIO_QUALITIES,
                                 lambda _: app.remember_settings(), 150)
     app.fps_combo = setting(2, "フレームレート", app.frame_rate, FRAME_RATES, lambda _: app.remember_settings(), 210)
-    from .version import IS_BETA
-    app.encoding_combo = setting(3, "変換・補間方式" if IS_BETA else "変換方式", app.encoding_mode, ENCODING_MODES, lambda _: app.remember_settings(), 170)
+    app.encoding_combo = setting(3, "変換・補間方式", app.encoding_mode, ENCODING_MODES, lambda _: app.remember_settings(), 170)
     if app.media_format.get() != "MP4":
         app.fps_combo.configure(state="disabled")
         app.encoding_combo.configure(state="disabled")
@@ -229,9 +228,7 @@ def build(app):
     app.log_box.grid(row=4, column=0, columnspan=2, sticky="ew", padx=16, pady=(4, 14))
     apply_theme(app)
     apply_layout(app)
-    from .version import IS_BETA
-    if IS_BETA:
-        label(settings_row, "60fps（フレーム補間）：自動 / GPU優先はRIFEのGPU補間、CPU高速はCPU補間。動きが崩れる場合があります。", size=11, color=MUTED).grid(row=2, column=0, columnspan=4, sticky="w", pady=(6, 0))
+    label(settings_row, "60fps（フレーム補間）：自動 / GPU優先はRIFEのGPU補間、CPU高速はCPU補間。動きが崩れる場合があります。", size=11, color=MUTED).grid(row=2, column=0, columnspan=4, sticky="w", pady=(6, 0))
     app.wallpaper = Wallpaper(app, outer, [outer._parent_frame, headline, input_card, center, queue_card, card, controls, footer], header)
 
 
@@ -371,6 +368,11 @@ def environment(app):
         window.destroy()
         app.check_updates(manual=True, beta=True)
     button(frame, "ベータ版をダウンロード", download_beta, width=240).grid(row=17, column=0, columnspan=3, sticky="w", padx=20, pady=(0, 20))
+    def download_release():
+        window.destroy()
+        app.check_updates(manual=True, beta=False)
+    button(frame, "リリース版に戻す" if "-beta." in VERSION else "リリース版をダウンロード", download_release,
+           width=240).grid(row=18, column=0, columnspan=3, sticky="w", padx=20, pady=(0, 20))
     links = ctk.CTkFrame(actions, fg_color="transparent")
     links.pack(side="left")
     button(links, "FFmpeg", lambda: webbrowser.open("https://www.gyan.dev/ffmpeg/builds/"), width=95).pack(side="left")

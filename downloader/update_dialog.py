@@ -20,9 +20,9 @@ def show_update_dialog(app, update=None, message=""):
     window.transient(app)
     window.columnconfigure(0, weight=1)
     window.rowconfigure(2, weight=1)
-    heading = ("ベータ版をダウンロード" if "-beta." in update.version else "新しいバージョンがあります") if update else "バージョンチェック"
+    heading = ("ベータ版をダウンロード" if "-beta." in update.version else "リリース版をダウンロード") if update else "バージョンチェック"
     ctk.CTkLabel(window, text=heading, text_color=colors["text"], font=("Yu Gothic UI", 21, "bold")).grid(row=0, column=0, sticky="w", padx=24, pady=(24, 10))
-    text = f"現在 {VERSION} → 新しいバージョン {update.version}" if update else message
+    text = f"現在 {VERSION} → ダウンロードするバージョン {update.version}" if update else message
     ctk.CTkLabel(window, text=text, text_color=colors["text"], wraplength=500, justify="left").grid(row=1, column=0, sticky="w", padx=24, pady=(0, 12))
     if update:
         notes = ctk.CTkTextbox(window, fg_color=colors["hover"], text_color=colors["text"], corner_radius=16, wrap="word")

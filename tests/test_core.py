@@ -1,6 +1,7 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from downloader.core import (Settings, cleanup_workspace, duration_text, entry_from_info,
                              find_tool, output_stem, publish_file, validate_url, youtube_mixed_url)
@@ -8,6 +9,21 @@ from downloader.worker import conversion_args
 
 
 class CoreTests(unittest.TestCase):
+    def test_shared_settings_fall_back_to_legacy_beta_and_prefer_stable(self):
+        from downloader.core import INTERPOLATED_FPS, FRAME_RATES
+        self.assertIn(INTERPOLATED_FPS, FRAME_RATES)
+        with tempfile.TemporaryDirectory() as folder:
+            shared = Path(folder) / "SimpleMediaDownloader"
+            legacy = Path(folder) / "SimpleMediaDownloaderBeta" / "settings.json"
+            beta_settings = Settings(destination="beta downloads", frame_rate=INTERPOLATED_FPS)
+            beta_settings.save(legacy)
+            with patch("downloader.core.CONFIG_DIR", shared):
+                self.assertEqual(Settings.load(), beta_settings)
+                Settings(destination="shared downloads").save()
+                self.assertEqual(Settings.load().destination, "shared downloads")
+                self.assertEqual(Settings.load(legacy), beta_settings)
+                self.assertEqual(Settings.load(Path(folder) / "missing.json"), Settings())
+
     def test_settings_roundtrip_and_invalid_data(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "設定.json"

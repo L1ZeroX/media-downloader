@@ -14,6 +14,30 @@ from downloader.window_shape import windows_api
 
 
 class GuiStateTests(unittest.TestCase):
+    def test_return_to_release_button_requests_stable_even_from_beta(self):
+        import customtkinter as ctk
+        from downloader.ui import environment
+        def widgets(parent):
+            for child in parent.winfo_children():
+                yield child
+                yield from widgets(child)
+        with patch("downloader.version.VERSION", "1.5.1-beta.1"):
+            environment(self.app)
+        buttons = [w for w in widgets(self.app) if isinstance(w, ctk.CTkButton)
+                   and w.cget("text") == "リリース版に戻す"]
+        self.assertEqual(len(buttons), 1)
+        with patch.object(self.app, "check_updates") as check:
+            buttons[0].invoke()
+            check.assert_called_once_with(manual=True, beta=False)
+
+    def test_explicit_release_request_bypasses_version_comparison(self):
+        with patch("downloader.updates.check_for_update", return_value=None) as check:
+            self.app.check_updates(manual=True, beta=False)
+            token, event = self.app.events.get(timeout=2)
+            self.assertEqual(token, "app-update")
+            self.assertIn("リリース版", event["message"])
+            check.assert_called_once_with(unittest.mock.ANY, beta=False, offer=True)
+
     def test_repeated_preview_reuses_decoded_image_and_completes_animation(self):
         import base64, io
         from PIL import Image, ImageTk

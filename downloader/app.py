@@ -75,7 +75,7 @@ class Application(ctk.CTk):
         self.after(80, self._poll)
         self.after(1200, self.check_updates)
 
-    def check_updates(self, manual=False, beta=False):
+    def check_updates(self, manual=False, beta=None):
         if self._update_checking or self.closing:
             return
         self._update_checking = True
@@ -84,8 +84,10 @@ class Application(ctk.CTk):
         def run():
             try:
                 from .updates import check_for_update
-                update = check_for_update(VERSION, beta=True, offer=True) if beta else check_for_update(VERSION)
-                event = {"update": update, "message": f"利用可能な新しいバージョンはありません。現在 {VERSION}", "manual": manual}
+                update = check_for_update(VERSION, beta=beta, offer=True) if beta is not None else check_for_update(VERSION)
+                message = (f"利用可能な新しいバージョンはありません。現在 {VERSION}" if beta is None else
+                           f"ダウンロード可能な{'ベータ版' if beta else 'リリース版'}が見つかりませんでした。")
+                event = {"update": update, "message": message, "manual": manual}
             except Exception as error:
                 event = {"update": None, "message": "更新を確認できませんでした。通信状態を確認し、環境設定から再確認してください。", "error": str(error), "manual": manual}
             self.events.put(("app-update", event))

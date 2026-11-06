@@ -27,10 +27,9 @@ def main(dist_dir=None, beta=False):
     for name in ("ffmpeg.exe", "ffprobe.exe", "deno.exe"):
         if not (ROOT / "tools" / name).exists():
             raise RuntimeError("Run setup.bat before building: missing " + name)
-    if beta:
-        from setup_rife import FILES, LICENSES, install
-        if not all((ROOT / "tools" / "rife" / name).is_file() for name in (*FILES, *LICENSES, "THIRD_PARTY.txt")):
-            install()
+    from setup_rife import FILES, LICENSES, install
+    if not all((ROOT / "tools" / "rife" / name).is_file() for name in (*FILES, *LICENSES, "THIRD_PARTY.txt")):
+        install()
     subprocess.run([
         sys.executable, "-m", "PyInstaller", "--noconfirm", "--onedir", "--console", "--hide-console", "hide-early",
         "--name", EXECUTABLE_NAME, "--distpath", str(dist_dir / f"v{VERSION}"), "--workpath", str(ROOT / "build"),
@@ -44,8 +43,7 @@ def main(dist_dir=None, beta=False):
         str(ROOT / "main.py"),
     ], cwd=ROOT, check=True)
     destination = dist_dir / f"v{VERSION}" / EXECUTABLE_NAME
-    shutil.copytree(ROOT / "tools", destination / "tools", dirs_exist_ok=True,
-                    ignore=None if beta else shutil.ignore_patterns("rife"))
+    shutil.copytree(ROOT / "tools", destination / "tools", dirs_exist_ok=True)
     deno_version = subprocess.check_output([str(destination / "tools" / "deno.exe"), "--version"], text=True).split()[1]
     with urlopen(f"https://raw.githubusercontent.com/denoland/deno/v{deno_version}/LICENSE.md",
                  context=ssl.create_default_context(cafile=certifi.where()), timeout=30) as response:
@@ -87,8 +85,8 @@ def main(dist_dir=None, beta=False):
         "FFmpeg: Gyan essentials build, GPL. License is in tools/LICENSE-FFmpeg.txt.\n"
         "Build information and corresponding source revision: https://www.gyan.dev/ffmpeg/builds/\n"
         "FFmpeg source: https://git.ffmpeg.org/ffmpeg.git\n"
-        + ("RIFE ncnn Vulkan / RIFE 4.6 model (beta only): https://github.com/nihui/rife-ncnn-vulkan\n"
-           "RIFE, ncnn, libwebp, dirent and runtime notices are included in tools/rife.\n" if beta else "") +
+        "RIFE ncnn Vulkan / RIFE 4.6 model: https://github.com/nihui/rife-ncnn-vulkan\n"
+        "RIFE, ncnn, libwebp, dirent and runtime notices are included in tools/rife.\n"
         "Other Python package licenses are included in _internal where provided by the build hooks.\n",
         encoding="utf-8")
     release = ROOT / "release"
@@ -107,6 +105,6 @@ def main(dist_dir=None, beta=False):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--dist-dir", type=Path, help="Separate output directory when the previous EXE is running")
-    parser.add_argument("--beta", action="store_true", help="Build the separate beta channel")
+    parser.add_argument("--beta", action="store_true", help="Build the beta update channel with shared features and settings")
     args = parser.parse_args()
     main(args.dist_dir, args.beta)

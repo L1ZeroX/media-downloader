@@ -15,6 +15,20 @@ def release(version, **overrides):
 
 
 class UpdateTests(unittest.TestCase):
+    def test_return_to_release_explicitly_offers_older_stable(self):
+        releases = [release("1.4.6"), release("1.5.0"), release("1.5.1-beta.1", prerelease=True),
+                    release("2.0.0", draft=True)]
+        self.assertIsNone(newest_release(releases, "1.5.1-beta.1"))
+        self.assertEqual(newest_release(releases, "1.5.1-beta.1", beta=False, offer=True).version, "1.5.0")
+        self.assertIsNone(newest_release([release("1.5.1-beta.1")], "1.5.1-beta.1", offer=True))
+
+    @patch("downloader.updates.urlopen")
+    def test_beta_automatically_discovers_integrated_release(self, open_url):
+        open_url.return_value.__enter__.return_value.read.return_value = json.dumps([
+            release("1.5.0-beta.2", prerelease=True), release("1.5.0")]).encode()
+        self.assertEqual(check_for_update("1.5.0-beta.2").version, "1.5.0")
+        self.assertIsNone(check_for_update("1.5.0-beta.2", beta=True))
+
     def test_beta_is_opt_in_and_versions_compare_with_final_release(self):
         beta = release("1.5.0-beta.1", prerelease=True)
         stable = release("1.4.6")

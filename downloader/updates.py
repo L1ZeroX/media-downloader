@@ -56,12 +56,19 @@ def newest_release(releases, current, beta=False, offer=False):
 
 
 def check_for_update(current, beta=None, offer=False):
+    automatic_beta = beta is None and "-beta." in current
     if beta is None:
-        beta = "-beta." in current
+        beta = automatic_beta
     request = Request(API_URL, headers={"Accept": "application/vnd.github+json",
                       "User-Agent": f"YoutubePandora-Windows/{current}", "X-GitHub-Api-Version": "2022-11-28"})
     with urlopen(request, timeout=10, context=ssl.create_default_context(cafile=certifi.where())) as response:
         body = response.read(MAX_RESPONSE + 1)
     if len(body) > MAX_RESPONSE:
         raise ValueError("バージョン情報が大きすぎます。")
-    return newest_release(json.loads(body), current, beta=beta, offer=offer)
+    releases = json.loads(body)
+    update = newest_release(releases, current, beta=beta, offer=offer)
+    if automatic_beta:
+        stable = newest_release(releases, current)
+        return max((item for item in (update, stable) if item),
+                   key=lambda item: version_number(item.version), default=None)
+    return update
