@@ -75,6 +75,9 @@ def build(app):
     headline.place(relx=1, y=round(22 * scale), anchor="ne")
     app.tools_button = button(headline, "環境設定", app.environment, width=106)
     app.tools_button.pack(side="right", padx=8, pady=8)
+    from .android_qr import show_android_qr
+    app.android_button = button(headline, "Android版 QR", lambda: show_android_qr(app), primary=True, width=132)
+    app.android_button.pack(side="right", padx=(0, 8), pady=8)
     app.theme_switch = WallpaperSwitch(headline, text="ダークモード", variable=app.dark_mode, command=app.theme_changed,
                                     progress_color=BLUE, fg_color=("#ccd3e0", "#454c5a"), button_color="white", button_hover_color="#e8edff",
                                     text_color=MUTED, font=(FONT, 12), switch_width=38, switch_height=22, width=145)
@@ -289,7 +292,8 @@ def apply_action_colors(app):
         return
     app._action_colors = colors
     foreground, hover, text = colors
-    for widget in (app.fetch_button, app.start_button, app.paste_button):
+    app.progress.configure(progress_color=foreground)
+    for widget in (app.fetch_button, app.start_button, app.paste_button, app.android_button):
         job = getattr(widget, "_motion_jobs", {}).pop("hover", None)
         if job:
             widget.after_cancel(job)

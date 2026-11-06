@@ -42,7 +42,7 @@ def main(dist_dir=None):
     licenses = destination / "licenses"
     licenses.mkdir(exist_ok=True)
     for package in ("yt-dlp", "yt-dlp-ejs", "customtkinter", "Pillow", "requests", "urllib3", "certifi", "mutagen",
-                    "pycryptodomex", "brotli", "websockets", "charset-normalizer", "idna", "darkdetect", "packaging"):
+                    "pycryptodomex", "brotli", "websockets", "charset-normalizer", "idna", "darkdetect", "packaging", "qrcode", "colorama"):
         distribution = importlib.metadata.distribution(package)
         for file in distribution.files or []:
             if "license" in file.name.lower() or file.name.lower() in ("copying", "notice"):

@@ -1,3 +1,4 @@
 yt-dlp[default]>=2025.11.12
 Pillow>=11.0
 customtkinter==6.0.0
+qrcode[pil]==8.2

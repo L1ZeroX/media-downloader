@@ -14,6 +14,39 @@ from downloader.window_shape import windows_api
 
 
 class GuiStateTests(unittest.TestCase):
+    def test_android_qr_offline_uses_public_release_page(self):
+        from PIL import Image
+        from downloader import android_qr
+        with patch.object(android_qr, "fetch_apk", side_effect=OSError("offline")), \
+             patch.object(android_qr, "make_qr", return_value=Image.new("RGB", (360,360), "white")) as render:
+            window = android_qr.show_android_qr(self.app)
+            deadline = time.monotonic() + 3
+            while not hasattr(window, "qr_image") and time.monotonic() < deadline:
+                self.app.update(); time.sleep(.01)
+            self.assertTrue(hasattr(window, "qr_image"))
+            render.assert_called_once_with(android_qr.RELEASES_URL)
+            window.destroy()
+
+    def test_android_qr_closes_safely_while_fetching_and_does_not_duplicate(self):
+        import threading
+        from downloader import android_qr
+        ready = threading.Event()
+        def fetch():
+            ready.wait(3)
+            return "v0.2.3", android_qr.RELEASES_URL
+        errors = []
+        self.app.report_callback_exception = lambda *args: errors.append(args)
+        with patch.object(android_qr, "fetch_apk", side_effect=fetch):
+            window = android_qr.show_android_qr(self.app)
+            self.assertIs(window, android_qr.show_android_qr(self.app))
+            self.app.update()
+            window.destroy()
+            ready.set()
+            deadline = time.monotonic() + .2
+            while time.monotonic() < deadline:
+                self.app.update(); time.sleep(.01)
+        self.assertFalse(errors)
+
     def test_add_link_button_appends_clipboard_without_replacing_existing_urls(self):
         self.app.url_input.insert("1.0", "https://example.com/first")
         self.app.url_input._textbox.tag_add("sel", "1.0", "1.end")
@@ -124,6 +157,8 @@ class GuiStateTests(unittest.TestCase):
         self.app.wallpaper.set_image(Image.new("RGB", (100, 100), "#982f58"))
         self.app.wallpaper.paint()
         first = self.app.fetch_button.cget("fg_color")
+        self.assertEqual(first, self.app.progress.cget("progress_color"))
+        self.assertEqual(first, self.app.android_button.cget("fg_color"))
         scrollbar_color = self.app.queue_scrollbar.cget("button_color")
         self.assertEqual(first, self.app.paste_button.cget("fg_color"))
         self.assertEqual(scrollbar_color, self.app.wallpaper.outer._scrollbar.cget("button_color"))
@@ -154,6 +189,7 @@ class GuiStateTests(unittest.TestCase):
         self.app.wallpaper.set_image(None)
         self.app.wallpaper.paint()
         self.assertEqual(self.app.start_button.cget("fg_color"), BLUE[0])
+        self.assertEqual(self.app.progress.cget("progress_color"), BLUE[0])
 
     def test_wallpaper_popup_palette_and_triangle_indicators(self):
         from PIL import Image
