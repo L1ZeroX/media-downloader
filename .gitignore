@@ -1,0 +1,14 @@
+.venv/
+tools/
+__pycache__/
+*.pyc
+.test-artifacts/
+*.log
+build/
+dist/
+release/
+*.spec
+.env
+.env.*
+*.pem
+*.key

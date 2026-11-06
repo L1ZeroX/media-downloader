@@ -1,0 +1,11 @@
+BACKGROUND = ("#f3f4f6", "#090b10")
+CARD = ("#ffffff", "#191c23")
+TEXT = ("#15171b", "#f1f3f7")
+MUTED = ("#797e88", "#9299a8")
+INPUT = ("#f5f6f9", "#252933")
+CONTROL = ("#f1f3f7", "#2c313d")
+BUTTON = ("#edf0f5", "#303644")
+HOVER = ("#e0e6ef", "#414b60")
+THUMB = ("#f0f3f8", "#262a33")
+BLUE = ("#1769f6", "#4388ff")
+FONT = "Yu Gothic UI"
