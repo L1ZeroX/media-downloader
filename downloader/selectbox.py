@@ -5,6 +5,7 @@ import customtkinter as ctk
 from .motion import MotionButton, animate
 from .palette import BLUE, CARD, CONTROL, FONT, HOVER, TEXT
 from .window_shape import round_popup
+from .popup_theme import popup_colors
 
 
 class SelectBox(MotionButton):
@@ -20,8 +21,8 @@ class SelectBox(MotionButton):
         super().__init__(master, textvariable=variable, text=variable.get() or " ", command=self.open, width=width, height=38,
                          anchor="w", corner_radius=12, border_spacing=8, fg_color=CONTROL, hover_color=HOVER,
                          text_color=TEXT, text_color_disabled=("#a5acb8", "#666f80"), font=(FONT, 13))
-        self.arrow = ctk.CTkLabel(self, text="⌄", width=24, height=20, fg_color="transparent", text_color=TEXT,
-                                 font=(FONT, 18, "bold"))
+        self.arrow = ctk.CTkLabel(self, text="▼", width=24, height=20, fg_color="transparent", text_color=TEXT,
+                                 font=(FONT, 12, "bold"))
         self.arrow.place(relx=1, x=-12, rely=.5, anchor="e")
         self.arrow.bind("<ButtonRelease-1>", lambda _: self.open())
         self.bind("<space>", lambda _: self.open())
@@ -77,15 +78,16 @@ class SelectBox(MotionButton):
         if active is not None and active is not self:
             active.close()
         root._active_selectbox = self
+        colors = self.menu_colors = popup_colors(self)
         popup = self.popup = tk.Toplevel(root)
         popup.withdraw()
         popup.overrideredirect(True)
         popup.transient(root)
         popup.animations_enabled = root.animations_enabled
-        popup.configure(bg=self._apply_appearance_mode(CARD))
+        popup.configure(bg=colors["surface"])
         popup.attributes("-alpha", 0)
-        frame = ctk.CTkFrame(popup, fg_color=CARD, bg_color=CARD, corner_radius=18, border_width=1,
-                             border_color=("#dde3ed", "#404959"))
+        frame = ctk.CTkFrame(popup, fg_color=colors["surface"], bg_color=colors["surface"], corner_radius=18, border_width=1,
+                             border_color=colors["border"])
         frame.pack(fill="both", expand=True)
         self.option_buttons = []
         self.focus_index = self.values.index(self.variable.get()) if self.variable.get() in self.values else 0
@@ -93,11 +95,11 @@ class SelectBox(MotionButton):
             selected = value == self.variable.get()
             item = MotionButton(frame, text=("✓   " if selected else "     ") + value, anchor="w", height=40,
                                 corner_radius=12, border_spacing=14, font=(FONT, 14, "bold" if selected else "normal"),
-                                fg_color=("#e8f0ff", "#2b4269") if selected else CARD, hover_color=HOVER,
-                                text_color=BLUE if selected else TEXT, command=lambda v=value: self.choose(v))
+                                fg_color=colors["selected"] if selected else colors["surface"], hover_color=colors["hover"],
+                                text_color=colors["accent"] if selected else colors["text"], command=lambda v=value: self.choose(v))
             item.pack(fill="x", padx=8, pady=(8 if index == 0 else 2, 8 if index == len(self.values) - 1 else 0))
             self.option_buttons.append(item)
-        self.arrow.configure(text="⌃")
+        self.arrow.configure(text="▲")
         popup.update_idletasks()
         scaling = self._get_widget_scaling()
         width = max(self.winfo_width(), round(190 * scaling))
@@ -132,7 +134,7 @@ class SelectBox(MotionButton):
     def move(self, step):
         self.focus_index = (self.focus_index + step) % len(self.values)
         for index, button in enumerate(self.option_buttons):
-            button.configure(border_width=1 if index == self.focus_index else 0, border_color=BLUE)
+            button.configure(border_width=1 if index == self.focus_index else 0, border_color=self.menu_colors["accent"])
         return "break"
 
     def choose(self, value):
@@ -166,7 +168,7 @@ class SelectBox(MotionButton):
                     popup.tk.call("after", "cancel", timer)
             popup.destroy()
             self.option_buttons = []
-            self.arrow.configure(text="⌄")
+            self.arrow.configure(text="▼")
         if getattr(root, "_active_selectbox", None) is self:
             root._active_selectbox = None
         if restore_focus:

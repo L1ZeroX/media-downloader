@@ -5,6 +5,7 @@ import customtkinter as ctk
 from .motion import MotionButton, animate
 from .palette import CARD, TEXT, HOVER, BLUE, FONT
 from .window_shape import round_popup
+from .popup_theme import popup_colors
 
 
 class TextMenu:
@@ -63,6 +64,7 @@ class TextMenu:
         if active:
             active.close()
         self.root._active_selectbox = self
+        colors = self.menu_colors = popup_colors(self.textbox)
         editor = self.editor
         editor.focus_set()
         if event is not None and not editor.tag_ranges("sel"):
@@ -72,10 +74,10 @@ class TextMenu:
         popup.overrideredirect(True)
         popup.transient(self.root)
         popup.animations_enabled = self.root.animations_enabled
-        popup.configure(bg=self.textbox._apply_appearance_mode(CARD))
+        popup.configure(bg=colors["surface"])
         popup.attributes("-alpha", 0)
-        frame = ctk.CTkFrame(popup, fg_color=CARD, bg_color=CARD, corner_radius=18,
-                             border_width=1, border_color=("#dde3ed", "#404959"))
+        frame = ctk.CTkFrame(popup, fg_color=colors["surface"], bg_color=colors["surface"], corner_radius=18,
+                             border_width=1, border_color=colors["border"])
         frame.pack(fill="both", expand=True)
         selected = bool(editor.tag_ranges("sel"))
         editable = editor.cget("state") != "disabled"
@@ -88,7 +90,8 @@ class TextMenu:
         for index, (action, title, available) in enumerate(entries):
             item = MotionButton(frame, text=title, anchor="w", width=220, height=38,
                                 corner_radius=12, border_spacing=14, font=(FONT, 13),
-                                fg_color=CARD, hover_color=HOVER, text_color=TEXT,
+                                fg_color=colors["surface"], hover_color=colors["hover"], text_color=colors["text"],
+                                text_color_disabled=colors["disabled"],
                                 state="normal" if available else "disabled",
                                 command=lambda a=action: self.execute(a))
             item.pack(fill="x", padx=8, pady=(8 if index == 0 else 2, 8 if index == 3 else 0))
@@ -125,7 +128,7 @@ class TextMenu:
         if self.buttons:
             self.focus_index = (self.focus_index + step) % len(self.buttons)
             for index, button in enumerate(self.buttons):
-                button.configure(border_width=1 if index == self.focus_index else 0, border_color=BLUE)
+                button.configure(border_width=1 if index == self.focus_index else 0, border_color=self.menu_colors["accent"])
         return "break"
 
     def check_focus(self):

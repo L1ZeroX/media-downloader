@@ -33,6 +33,7 @@ class BackgroundEditor(ctk.CTkToplevel):
         self.fade = tk.IntVar(value=transparency(app.settings.background_transparency))
         self.panel_fade = tk.IntVar(value=bounded_int(app.settings.panel_transparency, 0, 85, 0))
         self.panel_blur = tk.IntVar(value=bounded_int(app.settings.panel_blur, 0, 40, 18))
+        self.popup_colors = tk.StringVar(value=app.settings.popup_background_colors)
         self._crop_preview_key = None
         self.status = tk.StringVar(value="四隅の丸をドラッグして範囲を変更。枠の内側をドラッグして移動できます。")
         self.results = queue.Queue()
@@ -91,6 +92,11 @@ class BackgroundEditor(ctk.CTkToplevel):
                           command=changed, progress_color=BLUE).grid(row=row, column=1, sticky="ew", padx=8, pady=8)
         label(settings, "パネル透過率 0%＝通常表示。背景画像があるときに有効です。\n入力欄・動画の行・ボタンは、文字を読みやすい濃さで表示します。", size=12,
               color=MUTED, wraplength=width - 100).grid(row=3, column=0, columnspan=3, sticky="w", padx=16, pady=(4, 12))
+        ctk.CTkSwitch(settings, text="ポップアップの色を背景画像に合わせる", variable=self.popup_colors,
+                      onvalue="オン", offvalue="オフ", text_color=TEXT, progress_color=BLUE,
+                      font=(FONT, 13)).grid(row=4, column=0, columnspan=3, sticky="w", padx=16, pady=(0, 8))
+        label(settings, "形式・画質などの選択肢と右クリックメニューに適用します。", size=12,
+              color=MUTED).grid(row=5, column=0, columnspan=3, sticky="w", padx=16, pady=(0, 12))
         actions = ctk.CTkFrame(self, fg_color="transparent")
         actions.grid(row=5, column=0, sticky="ew", padx=24, pady=(0, 20))
         label(actions, "PNG / JPEG / WebP / BMP", size=12, color=MUTED).pack(side="left")
@@ -260,7 +266,7 @@ class BackgroundEditor(ctk.CTkToplevel):
         if self.loading:
             return
         settings = self.app.settings
-        fields = ("background_image", "background_crop", "background_transparency", "panel_transparency", "panel_blur")
+        fields = ("background_image", "background_crop", "background_transparency", "panel_transparency", "panel_blur", "popup_background_colors")
         old = {field: getattr(settings, field) for field in fields}
         try:
             settings.background_image = store_image(self.source, CONFIG_DIR) if self.source is not None else ""
@@ -268,6 +274,7 @@ class BackgroundEditor(ctk.CTkToplevel):
             settings.background_transparency = str(self.fade.get())
             settings.panel_transparency = str(self.panel_fade.get())
             settings.panel_blur = str(self.panel_blur.get())
+            settings.popup_background_colors = self.popup_colors.get()
             settings.save()
         except (OSError, ValueError) as error:
             for field, value in old.items():

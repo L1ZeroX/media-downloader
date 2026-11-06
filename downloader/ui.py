@@ -11,7 +11,7 @@ from .palette import BACKGROUND, CARD, TEXT, MUTED, INPUT, CONTROL, BUTTON, HOVE
 from .selectbox import SelectBox
 from .textmenu import TextMenu
 from .app_icon import set_window_icon
-from .background import Wallpaper, WallpaperFrame, WallpaperLabel
+from .background import Wallpaper, WallpaperFrame, WallpaperLabel, WallpaperSwitch
 from .version import APP_NAME
 
 
@@ -75,7 +75,7 @@ def build(app):
     headline.place(relx=1, y=round(22 * scale), anchor="ne")
     app.tools_button = button(headline, "環境設定", app.environment, width=106)
     app.tools_button.pack(side="right", padx=8, pady=8)
-    app.theme_switch = ctk.CTkSwitch(headline, text="ダークモード", variable=app.dark_mode, command=app.theme_changed,
+    app.theme_switch = WallpaperSwitch(headline, text="ダークモード", variable=app.dark_mode, command=app.theme_changed,
                                     progress_color=BLUE, fg_color=("#ccd3e0", "#454c5a"), button_color="white", button_hover_color="#e8edff",
                                     text_color=MUTED, font=(FONT, 12), switch_width=38, switch_height=22, width=145)
     app.theme_switch.pack(side="right", padx=(16, 8), pady=8)

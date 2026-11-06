@@ -131,6 +131,23 @@ class WallpaperLabel(ctk.CTkLabel):
         super().destroy()
 
 
+class WallpaperSwitch(ctk.CTkSwitch):
+    """Let the compositor cover the switch's separate background and text label."""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._bg_canvas.bind("<Button-1>", self.toggle)
+        self._bg_canvas.bind("<Enter>", self._on_enter)
+        self._bg_canvas.bind("<Leave>", self._on_leave)
+        self._canvas.configure(takefocus=True)
+        self._canvas.bind("<space>", lambda _: self.toggle())
+
+    def _draw(self, no_color_updates=False):
+        super()._draw(no_color_updates)
+        painter = getattr(self.winfo_toplevel(), "wallpaper", None)
+        if painter:
+            painter.schedule()
+
+
 class Wallpaper:
     def __init__(self, app, outer, frames, header):
         self.app, self.outer, self.frames, self.header = app, outer, frames, header
@@ -142,6 +159,7 @@ class Wallpaper:
         self._picture_key = None
         self._picture = None
         self._glass_key = None
+        self._popup_colors_key = None
         self._glass = None
         self._tile_keys = {}
         self._plain_key = None
@@ -219,6 +237,7 @@ class Wallpaper:
         self.source = image
         self._picture_key = None
         self._glass_key = None
+        self._popup_colors_key = None
         from .ui import fit_queue
         fit_queue(self.app)
         self.schedule()
@@ -380,6 +399,15 @@ class Wallpaper:
                     canvas.itemconfigure("inner_parts", state="hidden")
                 if isinstance(widget, WallpaperLabel):
                     self._draw_label(widget)
+                elif isinstance(widget, WallpaperSwitch):
+                    bg = widget._bg_canvas
+                    if bg.find_withtag("wallpaper"):
+                        bg.itemconfigure("wallpaper", image=photo(bg, True))
+                    else:
+                        bg.create_image(0, 0, anchor="nw", image=photo(bg, True), tags="wallpaper")
+                    bg.tag_lower("wallpaper")
+                    self._draw_text(widget, widget._text_label, bg)
+                    tk.Misc.lift(widget._canvas, bg)
             empty = app.queue_empty
             if empty.winfo_ismapped():
                 if empty.find_withtag("wallpaper"):
@@ -402,7 +430,9 @@ class Wallpaper:
         self.header.itemconfigure("caption", fill="#3b414b" if bright else "#e0e5ee")
 
     def _draw_label(self, widget):
-        native, canvas = widget._label, widget._canvas
+        self._draw_text(widget, widget._label, widget._canvas)
+
+    def _draw_text(self, widget, native, canvas):
         native.lower(canvas)
         value = str(native.cget("text"))
         signature = (value, native.winfo_x(), native.winfo_y(), native.winfo_width(), native.winfo_height(),
@@ -425,6 +455,13 @@ class Wallpaper:
             canvas.itemconfigure("background_parts", state="normal")
             if isinstance(widget, WallpaperLabel):
                 widget._label.lift(canvas)
+            elif isinstance(widget, WallpaperSwitch):
+                bg = widget._bg_canvas
+                bg.delete("wallpaper", "glass_text")
+                widget._text_label.lift(bg)
+                tk.Misc.lift(widget._canvas, bg)
+                self.photos.pop(bg, None)
+                self._tile_keys.pop(bg, None)
             self.photos.pop(canvas, None)
             self._tile_keys.pop(canvas, None)
         if hasattr(self.app, "queue_empty"):

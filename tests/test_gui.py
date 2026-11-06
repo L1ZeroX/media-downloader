@@ -14,6 +14,63 @@ from downloader.window_shape import windows_api
 
 
 class GuiStateTests(unittest.TestCase):
+    def test_wallpaper_popup_palette_and_triangle_indicators(self):
+        from PIL import Image
+        from downloader import popup_theme
+        self.app.deiconify()
+        self.app.update()
+        self.app.animations_enabled.set(False)
+        self.app.wallpaper.set_image(Image.new("RGB", (100, 100), "#d155aa"))
+        self.settings.popup_background_colors = "オン"
+        expected = popup_theme.popup_colors(self.app)
+        self.assertNotEqual(expected["surface"], "#191c23")
+        with patch.object(popup_theme, "render", wraps=popup_theme.render) as render:
+            self.assertEqual(popup_theme.popup_colors(self.app), expected)
+            render.assert_not_called()
+        combo = self.app.format_combo
+        self.assertEqual(combo.arrow.cget("text"), "▼")
+        combo.open()
+        self.assertEqual(combo.arrow.cget("text"), "▲")
+        self.assertEqual(combo.popup.cget("bg"), expected["surface"])
+        self.assertEqual(combo.option_buttons[1].cget("fg_color"), expected["surface"])
+        combo.close()
+        self.assertEqual(combo.arrow.cget("text"), "▼")
+        self.app.url_input.insert("1.0", "https://example.com")
+        self.app.url_menu.open()
+        self.assertEqual(self.app.url_menu.popup.cget("bg"), expected["surface"])
+        self.app.url_menu.close()
+        self.app.dark_mode.set(False)
+        self.app.theme_changed()
+        self.assertNotEqual(popup_theme.popup_colors(self.app)["surface"], expected["surface"])
+        self.settings.background_transparency = "100"
+        self.assertEqual(popup_theme.popup_colors(self.app)["surface"], "#ffffff")
+        self.settings.background_transparency = "0"
+        self.settings.popup_background_colors = "オフ"
+        self.assertEqual(popup_theme.popup_colors(self.app)["surface"], "#ffffff")
+
+    def test_theme_switch_background_matches_glass_and_restores(self):
+        from PIL import Image, ImageTk
+        self.app.deiconify()
+        self.app.update()
+        self.settings.panel_transparency = "55"
+        self.app.wallpaper.set_image(Image.new("RGB", (1200, 1000), "#a85372"))
+        self.app.update()
+        wallpaper, switch = self.app.wallpaper, self.app.theme_switch
+        wallpaper.paint()
+        canvas = switch._bg_canvas
+        x, y = wallpaper.viewport_position(canvas)
+        actual = ImageTk.getimage(wallpaper.photos[canvas]).getpixel((50, 10))[:3]
+        self.assertEqual(actual, wallpaper._glass.getpixel((x + 50, y + 10)))
+        self.assertEqual(canvas.itemcget("glass_text", "text"), "ダークモード")
+        switch._bg_canvas.event_generate("<Button-1>")
+        self.assertFalse(self.app.dark_mode.get())
+        wallpaper.paint()
+        self.assertTrue(canvas.find_withtag("glass_text"))
+        self.settings.panel_transparency = "0"
+        wallpaper.paint()
+        self.assertFalse(canvas.find_withtag("wallpaper"))
+        self.assertFalse(canvas.find_withtag("glass_text"))
+
     def test_glass_scroll_cached_pixels_labels_and_restore(self):
         from PIL import Image, ImageTk
         from downloader import background, ui
@@ -113,18 +170,22 @@ class GuiStateTests(unittest.TestCase):
         dialog.fade_changed(65)
         dialog.panel_fade.set(55)
         dialog.panel_blur.set(24)
+        dialog.popup_colors.set("オン")
         with patch("downloader.background_editor.CONFIG_DIR", Path(self.directory.name)):
             dialog.apply()
         self.assertEqual(self.settings.background_transparency, "65")
         self.assertEqual((self.settings.panel_transparency, self.settings.panel_blur), ("55", "24"))
+        self.assertEqual(self.settings.popup_background_colors, "オン")
         self.assertTrue(Path(self.settings.background_image).is_file())
         self.assertIsNotNone(self.app.wallpaper.source)
         saved = self.settings.background_image
         dialog = BackgroundEditor(self.app, self.app)
         dialog.clear()
         dialog.panel_fade.set(5)
+        dialog.popup_colors.set("オフ")
         dialog.cancel()
         self.assertEqual(self.settings.panel_transparency, "55")
+        self.assertEqual(self.settings.popup_background_colors, "オン")
         self.assertEqual(self.settings.background_image, saved)
         self.app.theme_changed()
         self.app.wallpaper.paint()

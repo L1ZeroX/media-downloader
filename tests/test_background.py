@@ -18,6 +18,7 @@ class BackgroundTests(unittest.TestCase):
             path.write_text('{"panel_transparency":"nan", "panel_blur":"bad"}')
             self.assertEqual(Settings.load(path), Settings())
             settings.panel_transparency, settings.panel_blur = "55", "18"
+            settings.popup_background_colors = "オン"
             settings.save(path)
             self.assertEqual(Settings.load(path), settings)
         image = Image.new("RGB", (100, 100), "black")
