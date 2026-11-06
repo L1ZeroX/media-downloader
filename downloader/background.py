@@ -93,6 +93,9 @@ class Wallpaper:
         self.photos = {}
         self.timer = None
         self.closed = False
+        self._scroll_updating = False
+        self._picture_key = None
+        self._picture = None
         self.results = queue.Queue()
         self.root_label = tk.Label(app, bd=0)
         self.body_label = tk.Label(outer, bd=0)
@@ -103,6 +106,19 @@ class Wallpaper:
         app.bind("<Configure>", self.schedule, add="+")
         app.bind("<Destroy>", self.on_destroy, add="+")
         outer._parent_canvas.configure(yscrollcommand=self.on_scroll)
+        # Scroll and repaint in one event, before Tk presents the moved child windows.
+        # CTk's wheel handler and the scrollbar must both use this path.
+        canvas = outer._parent_canvas
+        original_yview = canvas.yview
+        def yview(*args):
+            result = original_yview(*args)
+            if args and not self.closed:
+                self.paint()
+            return result
+        canvas.yview = yview
+        canvas.yview_moveto = lambda fraction: yview("moveto", fraction)
+        canvas.yview_scroll = lambda number, what: yview("scroll", number, what)
+        outer._scrollbar.configure(command=yview)
         if app.settings.background_image:
             path = app.settings.background_image
             results = self.results
@@ -133,6 +149,7 @@ class Wallpaper:
     def set_image(self, image):
         self.replaced = True
         self.source = image
+        self._picture_key = None
         self.schedule()
 
     def on_destroy(self, event):
@@ -143,15 +160,37 @@ class Wallpaper:
                 self.timer = None
 
     def on_scroll(self, first, last):
-        self.outer._scrollbar.set(first, last)
-        self.schedule()
+        if self.closed or self._scroll_updating:
+            return
+        self._scroll_updating = True
+        try:
+            # CTkScrollbar.set() flushes idle drawing: update the wallpaper FIRST.
+            self.paint()
+            self.outer._scrollbar.set(first, last)
+        finally:
+            self._scroll_updating = False
+
+    def viewport_position(self, widget):
+        """Use document coordinates even before Tk moves the native child windows."""
+        current, x, y = widget, 0, 0
+        while current is not self.outer and current is not self.app:
+            x += current.winfo_x()
+            y += current.winfo_y()
+            current = current.master
+        if current is self.outer:
+            canvas = self.outer._parent_canvas
+            return (round(canvas.winfo_rootx() - self.app.winfo_rootx() + x - canvas.canvasx(0)),
+                    round(canvas.winfo_rooty() - self.app.winfo_rooty() + y - canvas.canvasy(0)))
+        return widget.winfo_rootx() - self.app.winfo_rootx(), widget.winfo_rooty() - self.app.winfo_rooty()
 
     def schedule(self, event=None):
         if not self.closed and self.timer is None:
             self.timer = self.app.after(45, self.paint)
 
     def paint(self):
-        self.timer = None
+        if self.timer is not None:
+            self.app.after_cancel(self.timer)
+            self.timer = None
         if self.closed:
             return
         app = self.app
@@ -169,13 +208,16 @@ class Wallpaper:
             self.photos.clear()
             return
         size = (max(1, app.winfo_width()), max(1, app.winfo_height()))
-        picture = render(self.source, size, app.settings.background_crop, app.settings.background_transparency, base)
-        origin = (app.winfo_rootx(), app.winfo_rooty())
+        key = (id(self.source), size, app.settings.background_crop, app.settings.background_transparency, base)
+        if self._picture_key != key:
+            self._picture = render(self.source, size, app.settings.background_crop, app.settings.background_transparency, base)
+            self._picture_key = key
+        picture = self._picture
         previous_photos = self.photos
         self.photos = {}
 
         def photo(widget):
-            x, y = widget.winfo_rootx() - origin[0], widget.winfo_rooty() - origin[1]
+            x, y = self.viewport_position(widget)
             tile = Image.new("RGB", (max(1, widget.winfo_width()), max(1, widget.winfo_height())), base)
             # paste clips automatically and fills offscreen portions with the theme color.
             tile.paste(picture, (-x, -y))
@@ -204,7 +246,7 @@ class Wallpaper:
             self.header.create_image(0, 0, anchor="nw", image=photo(self.header), tags="wallpaper")
         self.header.tag_lower("wallpaper")
         self.header.configure(bg=base)
-        hx, hy = self.header.winfo_rootx() - origin[0], self.header.winfo_rooty() - origin[1]
+        hx, hy = self.viewport_position(self.header)
         sx, sy = max(0, min(size[0] - 1, hx)), max(0, min(size[1] - 1, hy))
         sample = picture.crop((sx, sy, max(sx + 1, min(size[0], hx + 400)), max(sy + 1, min(size[1], hy + 96))))
         bright = ImageStat.Stat(sample.convert("L")).mean[0] > 145

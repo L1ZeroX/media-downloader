@@ -100,6 +100,30 @@ class GuiStateTests(unittest.TestCase):
         self.assertIsNone(self.app.wallpaper.source)
         dialog.cancel()
 
+    def test_wallpaper_is_fixed_immediately_during_scroll_without_rescaling(self):
+        from PIL import Image, ImageTk
+        from downloader import background
+        self.app.deiconify()
+        self.app.update()
+        wallpaper = self.app.wallpaper
+        source = Image.new("RGB", (1200, 1000))
+        for y in range(source.height):
+            source.paste((y % 251, y // 4, 90), (0, y, source.width, y + 1))
+        self.settings.background_transparency = "0"
+        wallpaper.set_image(source)
+        canvas = wallpaper.outer._parent_canvas
+        with patch.object(background, "render", wraps=background.render) as render:
+            wallpaper.paint()
+            for fraction in (.5, 0., 1., .2):
+                canvas.yview_moveto(fraction)
+                # No update(), timer or idle wait: the frame about to display is correct.
+                scroll_y = round(canvas.canvasy(0))
+                x = canvas.winfo_rootx() - self.app.winfo_rootx() + 10
+                y = canvas.winfo_rooty() - self.app.winfo_rooty() + 10
+                tile = ImageTk.getimage(wallpaper.photos[wallpaper.body_label])
+                self.assertEqual(tile.getpixel((10, scroll_y + 10))[:3], wallpaper._picture.getpixel((x, y)))
+            self.assertEqual(render.call_count, 1)
+
     def test_selection_quality_memory_and_unknown_progress(self):
         self.add("first")
         self.add("second")
