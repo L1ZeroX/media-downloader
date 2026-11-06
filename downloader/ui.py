@@ -248,9 +248,6 @@ def apply_theme(app, transition=False):
     ctk.set_appearance_mode("dark" if app.dark_mode.get() else "light")
     style = ttk.Style(app)
     style.configure("Treeview", background=color(CARD, app), fieldbackground=color(CARD, app), foreground=color(TEXT, app))
-    style.configure("Treeview.Heading", background=color(CARD, app), foreground=color(MUTED, app))
-    style.map("Treeview", background=[("selected", "#273d62" if app.dark_mode.get() else "#edf3ff")],
-              foreground=[("selected", "#c6dcff" if app.dark_mode.get() else "#1556be")])
     app.tree.tag_configure("failed", foreground="#ff8590" if app.dark_mode.get() else "#d23e4a")
     app.tree.tag_configure("done", foreground="#60d5a9" if app.dark_mode.get() else "#208d68")
     app.table_frame.configure(bg=color(CARD, app))
@@ -258,14 +255,16 @@ def apply_theme(app, transition=False):
     app.preview_image.configure(bg=color(THUMB, app), fg=color(MUTED, app))
     if transition:
         app.preview()
+    apply_action_colors(app)
     if hasattr(app, "wallpaper"):
-        apply_action_colors(app)
         app.wallpaper.schedule()
 
 
 def apply_action_colors(app):
     from .popup_theme import action_colors
+    from .queue_theme import apply_queue_colors
     colors = action_colors(app)
+    apply_queue_colors(app, colors[0])
     if getattr(app, "_action_colors", None) == colors:
         return
     app._action_colors = colors

@@ -14,6 +14,52 @@ from downloader.window_shape import windows_api
 
 
 class GuiStateTests(unittest.TestCase):
+    def test_queue_headings_follow_wallpaper_and_cache_rounded_images(self):
+        from PIL import Image
+        from tkinter import ttk
+        from downloader import queue_theme
+        self.app.deiconify(); self.app.update()
+        self.app.wallpaper.set_image(Image.new("RGB", (100, 100), "#7d3f92"))
+        self.app.wallpaper.paint()
+        purple = dict(self.app._queue_colors)
+        self.assertEqual(self.settings.popup_background_colors, "オフ")
+        layout = str(ttk.Style(self.app).layout("Treeview.Heading"))
+        self.assertIn("Pandora.Heading.surface", layout)
+        self.assertNotIn("Treeheading.cell", layout)
+        self.assertNotIn("#ffffff", (purple["normal"], purple["hover"], purple["pressed"]))
+        with patch.object(queue_theme, "heading_image", wraps=queue_theme.heading_image) as render:
+            self.app.wallpaper.schedule(); self.app.wallpaper.paint()
+            render.assert_not_called()
+        self.app.wallpaper.set_image(Image.new("RGB", (100, 100), "#217a52"))
+        self.app.wallpaper.paint()
+        self.assertNotEqual(purple["normal"], self.app._queue_colors["normal"])
+        self.app.dark_mode.set(False); self.app.theme_changed()
+        self.assertEqual(self.app._queue_colors["text"], "#15171b")
+        self.settings.background_transparency = "100"
+        self.app.wallpaper.paint()
+        self.assertEqual(self.app._queue_colors_key[0], "#1769f6")
+        image = queue_theme.heading_image("#623e80")
+        self.assertEqual(image.getpixel((0, 0))[3], 0)
+        self.assertEqual(image.getpixel((20, 18))[3], 255)
+
+    def test_rounded_headings_keep_column_resize_and_row_check(self):
+        self.app.animations_enabled.set(False)
+        self.app.deiconify(); self.app.update()
+        tree = self.app.tree
+        edge = sum(tree.column(name, "width") for name in ("check", "title", "site"))
+        separator = next(x for x in range(edge-4, edge+4) if tree.identify_region(x, 15) == "separator")
+        before = tree.column("site", "width")
+        tree.event_generate("<ButtonPress-1>", x=separator, y=15)
+        tree.event_generate("<B1-Motion>", x=separator+30, y=15)
+        tree.event_generate("<ButtonRelease-1>", x=separator+30, y=15)
+        self.app.update()
+        self.assertGreater(tree.column("site", "width"), before)
+        self.add("heading-check"); self.app.update()
+        x, y, width, height = tree.bbox("heading-check", "check")
+        tree.event_generate("<ButtonPress-1>", x=x+width//2, y=y+height//2)
+        tree.event_generate("<ButtonRelease-1>", x=x+width//2, y=y+height//2)
+        self.assertFalse(self.app.items["heading-check"]["selected"])
+
     def test_action_buttons_follow_wallpaper_without_popup_setting(self):
         from PIL import Image
         from downloader import popup_theme
@@ -176,6 +222,7 @@ class GuiStateTests(unittest.TestCase):
         self.app.withdraw()
 
     def tearDown(self):
+        self.app.update_idletasks()  # Drain ttk theme events before destroying the Tcl interpreter.
         for callback in self.app.tk.splitlist(self.app.tk.call("after", "info")):
             self.app.tk.call("after", "cancel", callback)
         self.app.destroy()
