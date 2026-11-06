@@ -1,8 +1,14 @@
-# Media Downloader v1.1.0
+# Youtube Pandora! v1.2.0
 
 Windows 10/11（64bit）向けの日本語動画・音声ダウンローダーです。
 
-## 今回の追加
+## 今回の変更
+
+- アプリ名を「Media Downloader」から「Youtube Pandora!」に変更
+- ウィンドウタイトル・画面内の名前・EXE名・配布ZIP名を統一
+- EXE名は`YoutubePandora.exe`。保存先・背景画像などの既存設定は引き継ぎます
+
+## 背景画像のカスタマイズ
 
 - 任意の背景画像（PNG／JPEG／WebP／BMP）を設定
 - ドラッグでトリミング範囲を指定・移動し、仕上がりをプレビュー
@@ -21,12 +27,12 @@ Windows 10/11（64bit）向けの日本語動画・音声ダウンローダー�
 
 ## ダウンロード・起動
 
-`MediaDownloader-v1.1.0-Windows-x64.zip`をダウンロードし、**すべて展開**してください。
-`MediaDownloader-v1.1.0/MediaDownloader.exe`を起動します。
+`YoutubePandora-v1.2.0-Windows-x64.zip`をダウンロードし、**すべて展開**してください。
+`YoutubePandora-v1.2.0/YoutubePandora.exe`を起動します。
 Pythonのインストールは不要です。`_internal`・`tools`を含むフォルダー全体が必要です。
 
 旧版のフォルダーへ上書きせず、今回のフォルダーから起動してください。
-画面タイトルに「1.1.0」と表示されます。既存の保存設定は引き継がれます。
+画面タイトルに「Youtube Pandora! 1.2.0」と表示されます。既存の保存設定は引き継がれます。
 古いショートカットを使っていた場合は、新しいEXEへのショートカットを作り直してください。
 
 サイトの制限・仕様変更により取得できない動画があります。Cookie指定・ライブ録画・DRM保護コンテンツは対象外です。

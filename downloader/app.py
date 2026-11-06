@@ -16,7 +16,7 @@ from .core import (AUDIO_QUALITIES, VIDEO_QUALITIES, Settings, cleanup_workspace
                    duration_text, resolve_tools, size_text, validate_url, youtube_mixed_url)
 from .processes import WorkerProcess
 from .app_icon import set_app_identity, set_window_icon
-from .version import VERSION
+from .version import APP_NAME, VERSION
 
 
 class Application(ctk.CTk):
@@ -24,7 +24,7 @@ class Application(ctk.CTk):
         set_app_identity()
         super().__init__()
         set_window_icon(self)
-        self.title(f"Media Downloader {VERSION} — yt-dlp")
+        self.title(f"{APP_NAME} {VERSION} — yt-dlp")
         width = min(1200, self.winfo_screenwidth() - 80)
         height = min(940, self.winfo_screenheight() - 100)
         self.compact_layout = height < 900

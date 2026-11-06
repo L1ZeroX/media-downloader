@@ -22,7 +22,7 @@ TOOLS = ROOT / "tools"
 def request(url):
     certificates = ROOT / ".venv" / "Lib" / "site-packages" / "certifi" / "cacert.pem"
     context = ssl.create_default_context(cafile=str(certificates)) if certificates.exists() else ssl.create_default_context()
-    return urlopen(Request(url, headers={"User-Agent": "SimpleMediaDownloader-Setup/1.0"}), timeout=60, context=context)
+    return urlopen(Request(url, headers={"User-Agent": "YoutubePandora-Setup/1.0"}), timeout=60, context=context)
 
 
 def fetch(url):

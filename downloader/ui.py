@@ -12,6 +12,7 @@ from .selectbox import SelectBox
 from .textmenu import TextMenu
 from .app_icon import set_window_icon
 from .background import Wallpaper, WallpaperFrame
+from .version import APP_NAME
 
 
 def color(value, app):
@@ -67,7 +68,7 @@ def build(app):
     scale = outer._get_widget_scaling()
     header = tk.Canvas(outer, height=round(96 * scale), highlightthickness=0, bd=0, bg=color(BACKGROUND, app))
     header.grid(row=0, column=0, sticky="ew", pady=(0, 20))
-    header.create_text(0, 5 * scale, text="MEDIA DOWNLOADER", anchor="nw", font=(FONT, -round(11 * scale), "bold"), tags="caption")
+    header.create_text(0, 5 * scale, text=APP_NAME, anchor="nw", font=(FONT, -round(11 * scale), "bold"), tags="caption")
     header.create_text(0, 24 * scale, text="ダウンロード", anchor="nw", font=(FONT, -round(34 * scale), "bold"), tags="heading")
     header.create_text(0, 76 * scale, text="お気に入りの動画と音声を、ひとつの場所に。", anchor="nw", font=(FONT, -round(13 * scale)), tags="caption")
     headline = WallpaperFrame(header, fg_color=CARD, corner_radius=22)

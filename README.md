@@ -1,7 +1,8 @@
-# Media Downloader
+# Youtube Pandora!
 
 Python・yt-dlpを使用する、One UI風の丸みのある日本語GUIを備えたWindows向け動画ダウンローダーです。
 YouTube以外もyt-dlp対応サイトの公開動画を扱えます。サイト側の制限や仕様変更により取得できない場合があります。
+旧称はMedia Downloaderです。保存先・背景画像などの設定は、そのまま引き継ぎます。
 
 画面右上のスイッチでライト／ダークを切り替えられます。初期状態はダークです。
 アプリ起動時のフェード、ボタンのホバー・クリック、進捗バー、サムネイルに短いアニメーションを付けています。
@@ -17,10 +18,10 @@ URL欄の右クリックで、貼り付け・コピー・切り取り・すべ�
 
 ### EXE版（別のPCで使う場合）
 
-`release/MediaDownloader-v1.1.0-Windows-x64.zip`を別のWindows 10/11（64bit）PCへコピーし、ZIPをすべて展開して`MediaDownloader.exe`を起動してください。
+`release/YoutubePandora-v1.2.0-Windows-x64.zip`を別のWindows 10/11（64bit）PCへコピーし、ZIPをすべて展開して`YoutubePandora.exe`を起動してください。
 Pythonのインストールは不要で、FFmpeg・ffprobe・Denoも同梱しています。`_internal`と`tools`を含むフォルダー全体が必要です。
 EXE版の更新は、アプリを閉じて新しい配布フォルダーへ置き換えます。設定は引き継がれます。
-ウィンドウタイトルの「1.1.0」が今回の版の目印です。以前のEXEへ上書きせず、ZIP内のバージョン付きフォルダーから起動してください。
+ウィンドウタイトルの「Youtube Pandora! 1.2.0」が今回の版の目印です。以前のEXEへ上書きせず、ZIP内のバージョン付きフォルダーから起動してください。
 EXE・ウィンドウ・タスクバーには同じ青いアイコンを設定しています。古いショートカットを使っている場合は、新しいEXEへのショートカットを作り直してください。
 
 ### Python版
@@ -119,7 +120,7 @@ MP3のビットレートを上げても元音源以上の品質にはなりま�
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-`build_exe.bat`でEXE版を再ビルドできます。出力先は`dist/v1.1.0/MediaDownloader`、配布ZIPは`release`です。
+`build_exe.bat`でEXE版を再ビルドできます。出力先は`dist/v1.2.0/YoutubePandora`、配布ZIPは`release`です。
 版番号は`downloader/version.py`で管理します。アイコンは`assets/app.ico`をEXEに埋め込み、GUIでも同じファイルを使います。
 EXE版は起動時の毎回展開を避けるためフォルダー形式で配布します。画面にコンソールを残さず、取得用の子プロセスも同じEXEから起動します。
 

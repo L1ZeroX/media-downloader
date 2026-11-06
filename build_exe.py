@@ -8,7 +8,7 @@ import importlib.metadata
 import ssl
 from urllib.request import urlopen
 import certifi
-from downloader.version import VERSION
+from downloader.version import APP_NAME, EXECUTABLE_NAME, VERSION
 
 ROOT = Path(__file__).resolve().parent
 
@@ -22,7 +22,7 @@ def main():
             raise RuntimeError("Run setup.bat before building: missing " + name)
     subprocess.run([
         sys.executable, "-m", "PyInstaller", "--noconfirm", "--onedir", "--console", "--hide-console", "hide-early",
-        "--name", "MediaDownloader", "--distpath", str(ROOT / "dist" / f"v{VERSION}"), "--workpath", str(ROOT / "build"),
+        "--name", EXECUTABLE_NAME, "--distpath", str(ROOT / "dist" / f"v{VERSION}"), "--workpath", str(ROOT / "build"),
         "--specpath", str(ROOT / "build"),
         "--icon", str(icon),
         "--add-data", str(ROOT / "assets") + ";assets",
@@ -31,7 +31,7 @@ def main():
         "--hidden-import", "PIL._tkinter_finder", "--exclude-module", "pytest", "--exclude-module", "unittest",
         str(ROOT / "main.py"),
     ], cwd=ROOT, check=True)
-    destination = ROOT / "dist" / f"v{VERSION}" / "MediaDownloader"
+    destination = ROOT / "dist" / f"v{VERSION}" / EXECUTABLE_NAME
     shutil.copytree(ROOT / "tools", destination / "tools", dirs_exist_ok=True)
     deno_version = subprocess.check_output([str(destination / "tools" / "deno.exe"), "--version"], text=True).split()[1]
     with urlopen(f"https://raw.githubusercontent.com/denoland/deno/v{deno_version}/LICENSE.md",
@@ -54,9 +54,9 @@ def main():
         shutil.copy2(python_license, licenses / "LICENSE-Python.txt")
     shutil.copy2(ROOT / "README.md", destination / "README.md")
     (destination / "はじめに.txt").write_text(
-        f"Media Downloader {VERSION} / Windows 10・11 64bit\n\n"
+        f"{APP_NAME} {VERSION} / Windows 10・11 64bit\n\n"
         "1. ZIPをフォルダーごと展開してください。\n"
-        "2. MediaDownloader.exeをダブルクリックして起動してください。\n"
+        f"2. {EXECUTABLE_NAME}.exeをダブルクリックして起動してください。\n"
         "PythonやFFmpegの個別インストールは不要です。\n"
         "EXEだけを移動せず、_internal・toolsを含むフォルダー全体をコピーしてください。\n\n"
         "MP4/MP3・画質・フレームレート・変換方式を画面で選択できます。\n"
@@ -78,13 +78,13 @@ def main():
         encoding="utf-8")
     release = ROOT / "release"
     release.mkdir(exist_ok=True)
-    archive = release / f"MediaDownloader-v{VERSION}-Windows-x64.zip"
+    archive = release / f"{EXECUTABLE_NAME}-v{VERSION}-Windows-x64.zip"
     with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as bundle:
         for path in sorted(destination.rglob("*")):
             if path.is_file():
-                bundle.write(path, Path(f"MediaDownloader-v{VERSION}") / path.relative_to(destination))
-    shutil.copy2(archive, release / "MediaDownloader-Windows-x64.zip")
-    print(f"Portable EXE: {destination / 'MediaDownloader.exe'}")
+                bundle.write(path, Path(f"{EXECUTABLE_NAME}-v{VERSION}") / path.relative_to(destination))
+    shutil.copy2(archive, release / f"{EXECUTABLE_NAME}-Windows-x64.zip")
+    print(f"Portable EXE: {destination / (EXECUTABLE_NAME + '.exe')}")
     print(f"Distribution ZIP: {archive} ({archive.stat().st_size / 1024 / 1024:.1f} MB)")
 
 
