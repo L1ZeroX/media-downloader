@@ -14,6 +14,43 @@ from downloader.window_shape import windows_api
 
 
 class GuiStateTests(unittest.TestCase):
+    def test_action_buttons_follow_wallpaper_without_popup_setting(self):
+        from PIL import Image
+        from downloader import popup_theme
+        from downloader.palette import BLUE
+        self.app.deiconify()
+        self.app.update()
+        self.assertEqual(self.settings.popup_background_colors, "オフ")
+        self.app.wallpaper.set_image(Image.new("RGB", (100, 100), "#982f58"))
+        self.app.wallpaper.paint()
+        first = self.app.fetch_button.cget("fg_color")
+        self.assertNotEqual(first, BLUE[1])
+        self.assertEqual(first, self.app.start_button.cget("fg_color"))
+        with patch.object(popup_theme, "render", wraps=popup_theme.render) as render:
+            self.app.wallpaper.schedule()
+            self.app.wallpaper.paint()
+            render.assert_not_called()
+        self.app.animations_enabled.set(False)
+        self.app.fetch_button._on_enter()
+        self.assertEqual(self.app.fetch_button._visual_color, self.app.fetch_button.cget("hover_color"))
+        self.app.fetch_button._on_leave()
+        self.assertEqual(self.app.fetch_button._visual_color, first)
+        self.app.dark_mode.set(False)
+        self.app.theme_changed()
+        self.assertNotEqual(self.app.fetch_button.cget("fg_color"), first)
+        self.app.start_button.configure(state="disabled")
+        self.app.wallpaper.set_image(Image.new("RGB", (100, 100), "green"))
+        self.app.wallpaper.paint()
+        self.assertEqual(self.app.start_button.cget("state"), "disabled")
+        self.assertNotEqual(self.app.fetch_button.cget("fg_color"), first)
+        self.settings.background_transparency = "100"
+        self.app.wallpaper.paint()
+        self.assertEqual(self.app.fetch_button.cget("fg_color"), BLUE[0])
+        self.settings.background_transparency = "0"
+        self.app.wallpaper.set_image(None)
+        self.app.wallpaper.paint()
+        self.assertEqual(self.app.start_button.cget("fg_color"), BLUE[0])
+
     def test_wallpaper_popup_palette_and_triangle_indicators(self):
         from PIL import Image
         from downloader import popup_theme

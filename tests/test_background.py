@@ -9,6 +9,21 @@ from downloader.core import Settings
 
 
 class BackgroundTests(unittest.TestCase):
+    def test_image_accent_ignores_black_margins_and_preserves_contrast(self):
+        from types import SimpleNamespace
+        from downloader.popup_theme import action_colors, luminance
+        image = Image.new("RGB", (100, 100), "black")
+        image.paste("#a83250", (20, 20, 45, 45))
+        painter = SimpleNamespace(source=image)
+        app = SimpleNamespace(settings=Settings(), wallpaper=painter, dark_mode=SimpleNamespace(get=lambda: True))
+        color, hover, text = action_colors(app)
+        self.assertGreater(int(color[1:3], 16), int(color[3:5], 16))
+        for source in ("yellow", "white", "black", "lime", "#cc55ee"):
+            painter.source = Image.new("RGB", (100, 100), source)
+            painter._action_colors_key = None
+            for color in action_colors(app)[:2]:
+                self.assertGreaterEqual(1.05 / (luminance(color) + .05), 4.5)
+
     def test_glass_settings_and_softened_edges(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "settings.json"

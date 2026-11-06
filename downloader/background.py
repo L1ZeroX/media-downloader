@@ -160,6 +160,7 @@ class Wallpaper:
         self._picture = None
         self._glass_key = None
         self._popup_colors_key = None
+        self._action_colors_key = None
         self._glass = None
         self._tile_keys = {}
         self._plain_key = None
@@ -238,6 +239,7 @@ class Wallpaper:
         self._picture_key = None
         self._glass_key = None
         self._popup_colors_key = None
+        self._action_colors_key = None
         from .ui import fit_queue
         fit_queue(self.app)
         self.schedule()
@@ -305,6 +307,8 @@ class Wallpaper:
         if self.closed:
             return
         app = self.app
+        from .ui import apply_action_colors
+        apply_action_colors(app)
         base = BACKGROUND[1 if app.dark_mode.get() else 0]
         enabled = bool(self.source is not None and transparency(app.settings.background_transparency) < 100
                        and bounded_int(app.settings.panel_transparency, 0, 85, 0))

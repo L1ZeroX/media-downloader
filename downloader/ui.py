@@ -259,7 +259,23 @@ def apply_theme(app, transition=False):
     if transition:
         app.preview()
     if hasattr(app, "wallpaper"):
+        apply_action_colors(app)
         app.wallpaper.schedule()
+
+
+def apply_action_colors(app):
+    from .popup_theme import action_colors
+    colors = action_colors(app)
+    if getattr(app, "_action_colors", None) == colors:
+        return
+    app._action_colors = colors
+    foreground, hover, text = colors
+    for widget in (app.fetch_button, app.start_button):
+        job = getattr(widget, "_motion_jobs", {}).pop("hover", None)
+        if job:
+            widget.after_cancel(job)
+        widget.configure(fg_color=foreground, hover_color=hover, text_color=text)
+        widget._paint(foreground)
 
 
 def environment(app):
