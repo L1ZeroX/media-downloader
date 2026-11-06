@@ -198,7 +198,8 @@ def build(app):
     app.quality_combo = setting(1, "画質 / 音質", app.quality, VIDEO_QUALITIES if app.media_format.get() == "MP4" else AUDIO_QUALITIES,
                                 lambda _: app.remember_settings(), 150)
     app.fps_combo = setting(2, "フレームレート", app.frame_rate, FRAME_RATES, lambda _: app.remember_settings(), 210)
-    app.encoding_combo = setting(3, "変換方式", app.encoding_mode, ENCODING_MODES, lambda _: app.remember_settings(), 170)
+    from .version import IS_BETA
+    app.encoding_combo = setting(3, "変換・補間方式" if IS_BETA else "変換方式", app.encoding_mode, ENCODING_MODES, lambda _: app.remember_settings(), 170)
     if app.media_format.get() != "MP4":
         app.fps_combo.configure(state="disabled")
         app.encoding_combo.configure(state="disabled")
@@ -230,7 +231,7 @@ def build(app):
     apply_layout(app)
     from .version import IS_BETA
     if IS_BETA:
-        label(settings_row, "フレーム補間は処理に時間がかかります。動きが崩れる場合があります。", size=11, color=MUTED).grid(row=2, column=0, columnspan=4, sticky="w", pady=(6, 0))
+        label(settings_row, "60fps（フレーム補間）：自動 / GPU優先はRIFEのGPU補間、CPU高速はCPU補間。動きが崩れる場合があります。", size=11, color=MUTED).grid(row=2, column=0, columnspan=4, sticky="w", pady=(6, 0))
     app.wallpaper = Wallpaper(app, outer, [outer._parent_frame, headline, input_card, center, queue_card, card, controls, footer], header)
 
 

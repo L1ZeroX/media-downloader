@@ -4,7 +4,7 @@ from pathlib import Path
 import sys
 
 STABLE_VERSION = "1.4.6"
-BETA_VERSION = "1.5.0-beta.1"
+BETA_VERSION = "1.5.0-beta.2"
 if getattr(sys, "frozen", False):
     IS_BETA = json.loads((Path(sys._MEIPASS) / "release_channel.json").read_text())["beta"]
 else:

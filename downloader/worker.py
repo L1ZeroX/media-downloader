@@ -304,6 +304,7 @@ def convert(source: Path, target: Path, tools: dict, media_format: str, quality:
     encoder = "libx264"
     phase = "音声変換中" if media_format == "MP3" else "高速保存"
     needs_encode = "-c:v" in args and args[args.index("-c:v") + 1] != "copy"
+    gpu_interpolated = False
     if needs_encode:
         emit("progress", phase="GPUを確認中", percent=None)
         video = next(s for s in metadata["streams"] if s.get("codec_type") == "video" and not s.get("disposition", {}).get("attached_pic"))
@@ -312,21 +313,33 @@ def convert(source: Path, target: Path, tools: dict, media_format: str, quality:
         phase = "CPU変換中" if encoder == "libx264" else "GPU変換中"
         if "minterpolate=" in " ".join(args):
             phase = "フレーム補間中（CPU）"
-            emit("log", message="中間フレームを生成して60fpsにします。補間計算はCPUで実行します。")
+            from .version import IS_BETA
+            if IS_BETA and encoding_mode != "CPU高速":
+                from .gpu_interpolation import interpolate_video
+                try:
+                    interpolate_video(source, target, tools, metadata, quality, encoder, encoder_args(encoder), emit)
+                    gpu_interpolated = True
+                except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired) as error:
+                    target.unlink(missing_ok=True)
+                    emit("log", message=f"GPUフレーム補間を使用できないため、CPU補間で再試行します。理由: {str(error)[-1800:]}")
+            if not gpu_interpolated:
+                emit("log", message="中間フレームを生成して60fpsにします。補間計算はCPUで実行します。")
         emit("log", message=f"映像変換: {encoder} / フレームレート: {str(fps) + 'fps' if fps else '元のまま'}")
     elif media_format == "MP4":
         emit("log", message="映像は再圧縮せず、高速保存します。")
         if "-c:a" in args and args[args.index("-c:a") + 1] != "copy":
             phase = "音声変換中"
     try:
-        run_conversion([tools["ffmpeg"], *args], source, duration, phase)
+        if not gpu_interpolated:
+            run_conversion([tools["ffmpeg"], *args], source, duration, phase)
     except RuntimeError:
         if not needs_encode or encoder == "libx264":
             raise
         emit("log", message="GPU変換に失敗したため、CPU高速変換で再試行します。")
         target.unlink(missing_ok=True)
         args = conversion_args(source, target, metadata, media_format, quality, fps, "libx264", interpolate)
-        run_conversion([tools["ffmpeg"], *args], source, duration, "CPU変換中")
+        run_conversion([tools["ffmpeg"], *args], source, duration,
+                       "フレーム補間中（CPU）" if "minterpolate=" in " ".join(args) else "CPU変換中")
     output_info = probe(target, tools["ffprobe"])
     streams = output_info.get("streams", [])
     if media_format == "MP3":

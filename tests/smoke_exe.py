@@ -20,6 +20,7 @@ def main():
     parser.add_argument("--exe", required=True)
     parser.add_argument("--live", action="store_true")
     parser.add_argument("--interpolate", action="store_true", help="Verify beta motion interpolation")
+    parser.add_argument("--gpu-interpolate", action="store_true", help="Verify beta RIFE/Vulkan interpolation on a supported GPU")
     parser.add_argument("--external-url", help="Optional additional public video URL")
     args = parser.parse_args()
     executable = Path(args.exe).resolve()
@@ -60,7 +61,8 @@ def main():
                                     capture_output=True, text=True, encoding="utf-8", check=True, creationflags=subprocess.CREATE_NO_WINDOW)
             info = json.loads(result.stdout)
             if interpolate:
-                assert any(e.get("phase") == "フレーム補間中（CPU）" for e in events)
+                phase = "フレーム補間中（CPU）" if mode == "CPU高速" else "フレーム補間中（GPU / RIFE）"
+                assert any(e.get("phase") == phase for e in events), events
                 assert abs(float(info["format"]["duration"]) - 2) < .05
             codecs = {s["codec_name"] for s in info["streams"]}
             assert codecs == ({"h264", "aac"} if media_format == "MP4" else {"mp3"}), codecs
@@ -91,6 +93,8 @@ def main():
         results.append(check_download(url, "MP3"))
         if args.interpolate:
             results.append(check_download(url, "MP4", 60, "CPU高速", interpolate=True))
+        if args.gpu_interpolate:
+            results.append(check_download(url, "MP4", 60, "GPU優先", interpolate=True))
         if args.live:
             youtube = "https://www.youtube.com/watch?v=jNQXAC9IVRw"
             events = execute({"action": "discover", "urls": [{"url": youtube, "scope": "video"}], "tools": tools})
