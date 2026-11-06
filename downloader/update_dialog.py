@@ -46,6 +46,8 @@ def show_update_dialog(app, update=None, message=""):
         ctk.CTkButton(actions, text="更新内容", command=lambda: open_url(update.page_url), width=85,
                       corner_radius=18, fg_color=colors["hover"], text_color=colors["text"]).pack(side="left")
     window.bind("<Escape>", lambda _: window.destroy())
+    from .scrollbar_theme import apply_scrollbar_colors
+    apply_scrollbar_colors(app, window)
     if app.animations_enabled.get():
         window.attributes("-alpha", 0)
     window.deiconify()

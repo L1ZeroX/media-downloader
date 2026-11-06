@@ -83,7 +83,8 @@ def build(app):
     input_card = WallpaperFrame(outer, fg_color=CARD, corner_radius=24)
     input_card.grid(row=1, column=0, sticky="ew", pady=(0, 16))
     input_card.columnconfigure(0, weight=1)
-    label(input_card, "リンクを追加", size=16, bold=True).grid(row=0, column=0, sticky="w", padx=20, pady=(14, 4))
+    app.paste_button = button(input_card, "リンクを追加", app.paste_links, primary=True, width=144, height=36)
+    app.paste_button.grid(row=0, column=0, sticky="w", padx=16, pady=(14, 8))
     label(input_card, "1行に1つのURL · プレイリスト対応", size=12, color=MUTED).grid(row=0, column=1, sticky="e", padx=20, pady=(14, 4))
     app.url_input = ctk.CTkTextbox(input_card, height=URL_INPUT_HEIGHTS[app.settings.url_input_size], wrap="none", corner_radius=14, border_width=0,
                                   fg_color=INPUT, text_color=TEXT, font=(FONT, 13), activate_scrollbars=True)
@@ -121,10 +122,13 @@ def build(app):
         app.tree.heading(name, text=title)
         app.tree.column(name, width=width, minwidth=width if name != "title" else 120, stretch=name == "title", anchor="w" if name == "title" else "center")
     app.tree.grid(row=0, column=0, sticky="nsew")
+    from .queue_heading import QueueHeading
+    app.queue_heading = QueueHeading(app, app.tree)
     app.queue_empty = tk.Canvas(table, highlightthickness=0, bd=0, height=0, bg=color(CARD, app))
     app.queue_empty.grid(row=1, column=0, sticky="nsew")
     table.bind("<Configure>", lambda _: fit_queue(app), add="+")
     scrollbar = ctk.CTkScrollbar(table, orientation="vertical", command=app.tree.yview, width=12, fg_color=CARD, button_color=("#d7dce5", "#3b4353"), button_hover_color=("#b9c5d8", "#57667f"))
+    app.queue_scrollbar = scrollbar
     scrollbar.grid(row=0, column=1, rowspan=2, sticky="ns")
     app.tree.configure(yscrollcommand=scrollbar.set)
     app.tree.tag_configure("failed", foreground="#d23e4a")
@@ -149,8 +153,13 @@ def build(app):
                                       fg_color=BUTTON, text_color=TEXT, corner_radius=20, width=260, height=50,
                                       wraplength=240, anchor="w", justify="left", pady=10)
     app.preview_title.pack(fill="x", padx=16, pady=(12, 6))
-    app.preview_time = label(card, "", size=12, color=MUTED)
-    app.preview_time.pack(anchor="w", padx=20)
+    metadata = ctk.CTkFrame(card, fg_color="transparent")
+    metadata.pack(fill="x", padx=16)
+    app.preview_meta = []
+    for _ in range(3):
+        badge = WallpaperLabel(metadata, text="", font=(FONT, 11), fg_color=BUTTON, text_color=TEXT,
+                               corner_radius=12, height=26, anchor="center", wraplength=90)
+        app.preview_meta.append(badge)
     app.preview_error = label(card, "", size=11, color=("#d23e4a", "#ff8590"), wraplength=250, justify="left")
     app.preview_error.pack(anchor="w", padx=20, pady=(4, 12))
 
@@ -257,6 +266,7 @@ def apply_theme(app, transition=False):
     app.tree.tag_configure("done", foreground="#60d5a9" if app.dark_mode.get() else "#208d68")
     app.table_frame.configure(bg=color(CARD, app))
     app.queue_empty.configure(bg=color(CARD, app))
+    app.queue_heading.configure(bg=color(CARD, app))
     app.preview_image.configure(bg=color(THUMB, app), fg=color(MUTED, app))
     if transition:
         app.preview()
@@ -270,11 +280,16 @@ def apply_action_colors(app):
     from .queue_theme import apply_queue_colors
     colors = action_colors(app)
     apply_queue_colors(app, colors[0])
+    scrollbar_key = (colors[0], app.dark_mode.get())
+    if getattr(app, "_scrollbar_theme_key", None) != scrollbar_key:
+        from .scrollbar_theme import apply_scrollbar_colors
+        apply_scrollbar_colors(app)
+        app._scrollbar_theme_key = scrollbar_key
     if getattr(app, "_action_colors", None) == colors:
         return
     app._action_colors = colors
     foreground, hover, text = colors
-    for widget in (app.fetch_button, app.start_button):
+    for widget in (app.fetch_button, app.start_button, app.paste_button):
         job = getattr(widget, "_motion_jobs", {}).pop("hover", None)
         if job:
             widget.after_cancel(job)
@@ -357,3 +372,5 @@ def environment(app):
         window.destroy()
     button(actions, "保存", save, primary=True, width=96).pack(side="right")
     button(actions, "キャンセル", window.destroy, width=96).pack(side="right", padx=8)
+    from .scrollbar_theme import apply_scrollbar_colors
+    apply_scrollbar_colors(app, window)

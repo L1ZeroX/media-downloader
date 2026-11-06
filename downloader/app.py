@@ -163,6 +163,22 @@ class Application(ctk.CTk):
             self.destination.set(path)
             self.remember_settings()
 
+    def paste_links(self):
+        """Append clipboard text as new lines, preserving URLs already entered."""
+        value = self.url_menu.clipboard_text().strip()
+        if not value:
+            self.log("クリップボードに貼り付けるテキストがありません。")
+            return
+        editor = self.url_menu.editor
+        if editor.cget("state") == "disabled":
+            return
+        current = editor.get("1.0", "end-1c")
+        separator = "\n" if current and not current.endswith("\n") else ""
+        editor.insert("end-1c", separator + value + "\n")
+        editor.mark_set("insert", "end-1c")
+        editor.see("insert")
+        editor.focus_set()
+
     def open_destination(self):
         path = Path(self.destination.get()).expanduser()
         try:
@@ -244,13 +260,22 @@ class Application(ctk.CTk):
             apply_preview_colors(self)
             self.preview_image.configure(image="", text="動画を選択すると\nサムネイルを表示します", width=32, height=7)
             self.preview_title.configure(text="動画が選択されていません")
-            self.preview_time.configure(text="")
+            for badge in self.preview_meta:
+                badge.configure(text="")
+                badge.pack_forget()
             self.preview_error.configure(text="")
             return
         item = self.items[selection[0]]
         self.preview_title.configure(text=item["title"][:240])
-        fps_text = f"  ·  {item['fps']:g}fps" if isinstance(item.get("fps"), (int, float)) else ""
-        self.preview_time.configure(text=f"{item['site']}  ·  {duration_text(item.get('duration'))}" + fps_text)
+        fps_text = f"{item['fps']:g}fps" if isinstance(item.get("fps"), (int, float)) else ""
+        for badge in self.preview_meta:
+            badge.pack_forget()
+        for badge, text in zip(self.preview_meta, (item["site"], duration_text(item.get("duration")), fps_text)):
+            badge.configure(text=text)
+            if text:
+                badge.pack(side="left", padx=(0, 5))
+            else:
+                badge.pack_forget()
         self.preview_error.configure(text=item.get("error", "")[:180])
         try:
             if not item.get("image"):

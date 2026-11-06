@@ -32,5 +32,5 @@ def apply_preview_colors(app, image=None, image_key=None):
     colors = thumbnail_colors(image, dark) if image is not None else (BUTTON[int(dark)], TEXT[int(dark)])
     app._preview_color_key = key
     app._preview_colors = colors
-    for widget in (app.preview_heading, app.preview_title):
+    for widget in (app.preview_heading, app.preview_title, *app.preview_meta):
         widget.configure(fg_color=colors[0], text_color=colors[1])

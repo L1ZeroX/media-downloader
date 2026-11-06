@@ -45,3 +45,5 @@ def apply_queue_colors(app, accent):
     style.map("Treeview", background=[("selected", pressed)], foreground=[("selected", TEXT[index])])
     app._queue_colors_key = key
     app._queue_colors = dict(normal=normal, hover=hover, pressed=pressed, text=TEXT[index])
+    if hasattr(app, "queue_heading"):
+        app.queue_heading.schedule()

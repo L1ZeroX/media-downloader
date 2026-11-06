@@ -399,6 +399,8 @@ class Wallpaper:
                     canvas.create_image(0, 0, anchor="nw", image=photo(canvas, True), tags="wallpaper")
                 canvas.tag_lower("wallpaper")
                 canvas.itemconfigure("background_parts", state="hidden")
+                if isinstance(widget, ctk.CTkScrollbar) and widget.cget("fg_color") == "transparent":
+                    canvas.itemconfigure("border_parts", state="hidden")
                 if isinstance(widget, (ctk.CTkFrame, WallpaperLabel)) and widget.cget("fg_color") == "transparent":
                     canvas.itemconfigure("inner_parts", state="hidden")
                 if isinstance(widget, WallpaperLabel):
@@ -412,12 +414,13 @@ class Wallpaper:
                     bg.tag_lower("wallpaper")
                     self._draw_text(widget, widget._text_label, bg)
                     tk.Misc.lift(widget._canvas, bg)
-            empty = app.queue_empty
-            if empty.winfo_ismapped():
-                if empty.find_withtag("wallpaper"):
-                    empty.itemconfigure("wallpaper", image=photo(empty, True))
-                else:
-                    empty.create_image(0, 0, anchor="nw", image=photo(empty, True), tags="wallpaper")
+            for empty in (app.queue_empty, app.queue_heading):
+                if empty.winfo_ismapped():
+                    if empty.find_withtag("wallpaper"):
+                        empty.itemconfigure("wallpaper", image=photo(empty, True))
+                    else:
+                        empty.create_image(0, 0, anchor="nw", image=photo(empty, True), tags="wallpaper")
+                    empty.tag_lower("wallpaper")
         else:
             self._restore_surfaces()
         if self.header.find_withtag("wallpaper"):
@@ -457,6 +460,8 @@ class Wallpaper:
             canvas.delete("wallpaper", "glass_text")
             canvas.itemconfigure("inner_parts", state="normal")
             canvas.itemconfigure("background_parts", state="normal")
+            if isinstance(widget, ctk.CTkScrollbar):
+                canvas.itemconfigure("border_parts", state="normal")
             if isinstance(widget, WallpaperLabel):
                 widget._label.lift(canvas)
             elif isinstance(widget, WallpaperSwitch):
@@ -470,3 +475,4 @@ class Wallpaper:
             self._tile_keys.pop(canvas, None)
         if hasattr(self.app, "queue_empty"):
             self.app.queue_empty.delete("wallpaper")
+            self.app.queue_heading.delete("wallpaper")

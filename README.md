@@ -30,10 +30,10 @@ v1.4.0以降は起動時にGitHub Releasesをバックグラウンドで確認�
 
 ### EXE版（別のPCで使う場合）
 
-`release/YoutubePandora-v1.4.2-Windows-x64.zip`を別のWindows 10/11（64bit）PCへコピーし、ZIPをすべて展開して`YoutubePandora.exe`を起動してください。
+`release/YoutubePandora-v1.4.3-Windows-x64.zip`を別のWindows 10/11（64bit）PCへコピーし、ZIPをすべて展開して`YoutubePandora.exe`を起動してください。
 Pythonのインストールは不要で、FFmpeg・ffprobe・Denoも同梱しています。`_internal`と`tools`を含むフォルダー全体が必要です。
 EXE版の更新は、アプリを閉じて新しい配布フォルダーへ置き換えます。設定は引き継がれます。
-ウィンドウタイトルの「Youtube Pandora! 1.4.2」が今回の版の目印です。以前のEXEへ上書きせず、ZIP内のバージョン付きフォルダーから起動してください。
+ウィンドウタイトルの「Youtube Pandora! 1.4.3」が今回の版の目印です。以前のEXEへ上書きせず、ZIP内のバージョン付きフォルダーから起動してください。
 EXE・ウィンドウ・タスクバーには同じ青いアイコンを設定しています。古いショートカットを使っている場合は、新しいEXEへのショートカットを作り直してください。
 
 ### Python版
@@ -147,3 +147,9 @@ EXE版は起動時の毎回展開を避けるためフォルダー形式で配�
 GUIはメインプロセスで、yt-dlpと変換は別プロセスで動作します。JSON Linesでイベントを渡し、Windows Job Objectで子プロセスの寿命を管理します。
 ダウンロード素材は保存先内の専用作業フォルダーに置き、変換とffprobe検証の成功後に完成ファイルだけを公開します。
 FFmpegは[Gyan配布ビルド](https://www.gyan.dev/ffmpeg/builds/)、Denoは[公式配布](https://github.com/denoland/deno/releases)を使用します。各ツールのライセンスは配布元を参照してください。
+
+### v1.4.3 の画面変更
+
+「リンクを追加」ボタンでクリップボードのURLを末尾に貼り付けます。入力済みのURLは残ります。「情報を取得」で読み込みを開始します。
+
+スクロールバーと一覧見出しは背景画像の色に同期します。透過パネルでは見出しの隙間にも同じ背景を描画します。プレビューのサイト名・動画時間・fpsは、サムネイル色の丸角ラベルで表示します。

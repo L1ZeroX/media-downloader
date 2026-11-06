@@ -14,6 +14,18 @@ from downloader.window_shape import windows_api
 
 
 class GuiStateTests(unittest.TestCase):
+    def test_add_link_button_appends_clipboard_without_replacing_existing_urls(self):
+        self.app.url_input.insert("1.0", "https://example.com/first")
+        self.app.url_input._textbox.tag_add("sel", "1.0", "1.end")
+        with patch.object(self.app.url_menu, "clipboard_text", return_value=" https://example.com/second\nhttps://example.com/third "):
+            self.app.paste_button.invoke()
+        self.assertEqual(self.app.url_input.get("1.0", "end-1c"),
+                         "https://example.com/first\nhttps://example.com/second\nhttps://example.com/third\n")
+        before = self.app.url_input.get("1.0", "end-1c")
+        with patch.object(self.app.url_menu, "clipboard_text", return_value=""):
+            self.app.paste_button.invoke()
+        self.assertEqual(before, self.app.url_input.get("1.0", "end-1c"))
+
     def test_thumbnail_badges_follow_selection_cache_and_missing_images(self):
         from PIL import Image
         import base64
@@ -31,7 +43,11 @@ class GuiStateTests(unittest.TestCase):
             self.add(key)
             self.app.items[key]["image"] = thumbnail(color)
         self.app.tree.selection_set("purple"); self.app.preview(); self.app.update()
+        self.app.items["purple"].update(site="Youtube", duration=246, fps=30)
+        self.app.preview(); self.app.update()
         purple = self.app.preview_title.cget("fg_color")
+        self.assertEqual([b.cget("text") for b in self.app.preview_meta], ["Youtube", "4:06", "30fps"])
+        self.assertTrue(all(b.winfo_ismapped() and b.cget("fg_color") == purple for b in self.app.preview_meta))
         self.assertEqual(purple, self.app.preview_heading.cget("fg_color"))
         self.assertGreaterEqual(1.05 / (luminance(purple) + .05), 4.5)
         self.assertGreater(self.app.preview_title.cget("corner_radius"), 0)
@@ -50,6 +66,7 @@ class GuiStateTests(unittest.TestCase):
         self.assertEqual(self.app.preview_title.cget("fg_color"), BUTTON[0])
         self.app.tree.selection_remove(self.app.tree.selection()); self.app.preview()
         self.assertEqual(self.app.preview_heading.cget("text_color"), TEXT[0])
+        self.assertFalse(any(b.winfo_manager() for b in self.app.preview_meta))
 
     def test_queue_headings_follow_wallpaper_and_cache_rounded_images(self):
         from PIL import Image
@@ -86,9 +103,9 @@ class GuiStateTests(unittest.TestCase):
         edge = sum(tree.column(name, "width") for name in ("check", "title", "site"))
         separator = next(x for x in range(edge-4, edge+4) if tree.identify_region(x, 15) == "separator")
         before = tree.column("site", "width")
-        tree.event_generate("<ButtonPress-1>", x=separator, y=15)
-        tree.event_generate("<B1-Motion>", x=separator+30, y=15)
-        tree.event_generate("<ButtonRelease-1>", x=separator+30, y=15)
+        self.app.queue_heading.event_generate("<ButtonPress-1>", x=separator, y=15)
+        self.app.queue_heading.event_generate("<B1-Motion>", x=separator+30, y=15)
+        self.app.queue_heading.event_generate("<ButtonRelease-1>", x=separator+30, y=15)
         self.app.update()
         self.assertGreater(tree.column("site", "width"), before)
         self.add("heading-check"); self.app.update()
@@ -107,6 +124,9 @@ class GuiStateTests(unittest.TestCase):
         self.app.wallpaper.set_image(Image.new("RGB", (100, 100), "#982f58"))
         self.app.wallpaper.paint()
         first = self.app.fetch_button.cget("fg_color")
+        scrollbar_color = self.app.queue_scrollbar.cget("button_color")
+        self.assertEqual(first, self.app.paste_button.cget("fg_color"))
+        self.assertEqual(scrollbar_color, self.app.wallpaper.outer._scrollbar.cget("button_color"))
         self.assertNotEqual(first, BLUE[1])
         self.assertEqual(first, self.app.start_button.cget("fg_color"))
         with patch.object(popup_theme, "render", wraps=popup_theme.render) as render:
@@ -121,6 +141,7 @@ class GuiStateTests(unittest.TestCase):
         self.app.dark_mode.set(False)
         self.app.theme_changed()
         self.assertNotEqual(self.app.fetch_button.cget("fg_color"), first)
+        self.assertNotEqual(self.app.queue_scrollbar.cget("button_color"), scrollbar_color)
         self.app.start_button.configure(state="disabled")
         self.app.wallpaper.set_image(Image.new("RGB", (100, 100), "green"))
         self.app.wallpaper.paint()
@@ -177,6 +198,11 @@ class GuiStateTests(unittest.TestCase):
         self.app.update()
         wallpaper, switch = self.app.wallpaper, self.app.theme_switch
         wallpaper.paint()
+        heading = self.app.queue_heading
+        x, y = wallpaper.viewport_position(heading)
+        self.assertEqual(ImageTk.getimage(wallpaper.photos[heading]).getpixel((40, 0))[:3],
+                         wallpaper._glass.getpixel((x + 40, y)))
+        self.assertEqual(ImageTk.getimage(heading.photo).getpixel((40, 0))[3], 0)
         canvas = switch._bg_canvas
         x, y = wallpaper.viewport_position(canvas)
         actual = ImageTk.getimage(wallpaper.photos[canvas]).getpixel((50, 10))[:3]
@@ -242,6 +268,7 @@ class GuiStateTests(unittest.TestCase):
         wallpaper.paint()
         self.app.update_idletasks()
         self.assertFalse(self.app.queue_empty.find_withtag("wallpaper"))
+        self.assertFalse(self.app.queue_heading.find_withtag("wallpaper"))
         for label in wallpaper._labels:
             self.assertFalse(label._canvas.find_withtag("glass_text"))
         self.assertEqual(self.app.tree.cget("height"), 4)
