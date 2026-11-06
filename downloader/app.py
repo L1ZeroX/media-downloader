@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import queue
 import tempfile
+import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox
 
@@ -44,6 +45,9 @@ class Application(ctk.CTk):
         self.closing = False
         self.completed = self.failed = self.total = 0
         self.source_errors = 0
+        self._update_checking = False
+        self._update_notice = None
+        self._update_dialog = None
         self.discovery_finished = False
         self.photo = None
         self.indeterminate = False
@@ -65,6 +69,38 @@ class Application(ctk.CTk):
             self.attributes("-alpha", 0)
             self.after(20, lambda: animate(self, "startup", .22, lambda t: self.attributes("-alpha", t)))
         self.after(80, self._poll)
+        self.after(1200, self.check_updates)
+
+    def check_updates(self, manual=False):
+        if self._update_checking or self.closing:
+            return
+        self._update_checking = True
+        if manual:
+            self.log("GitHubでアプリの新しいバージョンを確認しています…")
+        def run():
+            try:
+                from .updates import check_for_update
+                update = check_for_update(VERSION)
+                event = {"update": update, "message": f"利用可能な新しいバージョンはありません。現在 {VERSION}", "manual": manual}
+            except Exception as error:
+                event = {"update": None, "message": "更新を確認できませんでした。通信状態を確認し、環境設定から再確認してください。", "error": str(error), "manual": manual}
+            self.events.put(("app-update", event))
+        threading.Thread(target=run, name="version-check", daemon=True).start()
+
+    def _receive_update(self, event):
+        self._update_checking = False
+        if event.get("error"):
+            self.log("バージョンチェック: " + event["message"])
+        if event["update"] or event["manual"]:
+            self._update_notice = event
+
+    def _show_pending_update(self):
+        if (not self._update_notice or self.closing or self.mode or self.grab_current()
+                or self.state() in ("withdrawn", "iconic") or (self._update_dialog and self._update_dialog.winfo_exists())):
+            return
+        from .update_dialog import show_update_dialog
+        event, self._update_notice = self._update_notice, None
+        self._update_dialog = show_update_dialog(self, event["update"], event["message"])
 
     def _build(self):
         from .ui import build
@@ -465,10 +501,13 @@ class Application(ctk.CTk):
                 token, event = self.events.get_nowait()
             except queue.Empty:
                 break
-            if self.worker and token == self.worker.token:
+            if token == "app-update":
+                self._receive_update(event)
+            elif self.worker and token == self.worker.token:
                 self._handle(event)
             if self.closing and self.worker is None:
                 return
+        self._show_pending_update()
         self.after(80, self._poll)
 
     def close(self):

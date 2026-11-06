@@ -328,6 +328,14 @@ def environment(app):
     button(frame, "画像・トリミング・透過・ぼかし", edit_background, width=300).grid(row=12, column=0, columnspan=3, sticky="w", padx=20, pady=8)
     label(frame, "背景は専用画面の「適用」で保存します。元画像は変更しません。", size=12,
           color=MUTED).grid(row=13, column=0, columnspan=3, sticky="w", padx=20, pady=(0, 20))
+    from .version import VERSION
+    label(frame, f"アプリの更新 · 現在 {VERSION}", size=22, bold=True).grid(row=14, column=0, columnspan=3, sticky="w", padx=20, pady=8)
+    label(frame, "起動時にGitHubの公開版を確認し、新しいバージョンがあると通知します。", size=12,
+          color=MUTED).grid(row=15, column=0, columnspan=3, sticky="w", padx=20, pady=8)
+    def check_updates():
+        window.destroy()
+        app.check_updates(manual=True)
+    button(frame, "新しいバージョンを確認", check_updates, width=240).grid(row=16, column=0, columnspan=3, sticky="w", padx=20, pady=(8, 20))
     links = ctk.CTkFrame(actions, fg_color="transparent")
     links.pack(side="left")
     button(links, "FFmpeg", lambda: webbrowser.open("https://www.gyan.dev/ffmpeg/builds/"), width=95).pack(side="left")

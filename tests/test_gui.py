@@ -170,6 +170,8 @@ class GuiStateTests(unittest.TestCase):
         self.save_patch = patch.object(Settings, "save")
         self.load_patch.start()
         self.save_patch.start()
+        self.update_patch = patch("downloader.updates.check_for_update", return_value=None)
+        self.update_patch.start()
         self.app = Application()
         self.app.withdraw()
 
@@ -179,6 +181,7 @@ class GuiStateTests(unittest.TestCase):
         self.app.destroy()
         self.load_patch.stop()
         self.save_patch.stop()
+        self.update_patch.stop()
         del self.app
         gc.collect()  # Dispose Tcl objects on their owning thread before worker tests start.
         self.directory.cleanup()
@@ -187,6 +190,46 @@ class GuiStateTests(unittest.TestCase):
         self.app._handle({"event": "entry", "item": {"key": key, "url": "https://example.com/" + key,
                             "title": "テスト " + key, "site": "test", "duration": None}})
         self.app.items[key]["state"] = "待機中"
+
+    def test_update_popup_waits_for_download_and_uses_theme(self):
+        from downloader.updates import Update
+        from downloader.popup_theme import popup_colors
+        self.app.animations_enabled.set(False)
+        self.app.deiconify()
+        self.app.update()
+        self.app.mode = "download"
+        self.app._receive_update({"update": Update("9.0.0", "https://github.com/L1ZeroX/media-downloader/releases", "https://github.com/L1ZeroX/media-downloader/releases", "テスト用の更新内容"), "message": "", "manual": False})
+        self.app._show_pending_update()
+        self.assertIsNone(self.app._update_dialog)
+        self.app.mode = ""
+        with patch.object(self.app, "state", return_value="zoomed"):
+            self.app._show_pending_update()
+        self.app.update()
+        dialog = self.app._update_dialog
+        self.assertTrue(dialog.winfo_viewable())
+        self.assertEqual(dialog.cget("fg_color"), popup_colors(self.app)["surface"])
+        self.assertEqual(self.app.grab_current(), dialog)
+        dialog.destroy()
+        self.app._show_pending_update()
+        self.assertIsNone(self.app._update_notice)
+
+    def test_automatic_check_failure_is_quiet_but_manual_is_visible(self):
+        event = {"update": None, "manual": False, "error": "offline", "message": "通信できません"}
+        self.app._receive_update(event)
+        self.assertIsNone(self.app._update_notice)
+        self.app._receive_update({**event, "manual": True})
+        self.assertEqual(self.app._update_notice["message"], "通信できません")
+
+    def test_version_network_result_is_delivered_through_queue(self):
+        with patch("downloader.updates.check_for_update", return_value=None) as check:
+            self.app.check_updates(manual=True)
+            token, event = self.app.events.get(timeout=2)
+            self.assertEqual(token, "app-update")
+            self.assertTrue(self.app._update_checking)
+            self.app._receive_update(event)
+            self.assertFalse(self.app._update_checking)
+            self.assertTrue(event["manual"])
+            check.assert_called_once()
 
     def test_wallpaper_editor_apply_cancel_crop_and_reset(self):
         from PIL import Image
