@@ -19,6 +19,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--exe", required=True)
     parser.add_argument("--live", action="store_true")
+    parser.add_argument("--interpolate", action="store_true", help="Verify beta motion interpolation")
     parser.add_argument("--external-url", help="Optional additional public video URL")
     args = parser.parse_args()
     executable = Path(args.exe).resolve()
@@ -47,17 +48,20 @@ def main():
         assert worker.returncode == 0, (worker.returncode, events, stderr)
         return events
 
-    def check_download(url, media_format, fps=None, mode="自動（高速）"):
+    def check_download(url, media_format, fps=None, mode="自動（高速）", interpolate=False):
         workspace = tempfile.mkdtemp(prefix=".media-download-", dir=root)
         try:
             events = execute({"action": "download", "item": {"key": "test", "url": url}, "workspace": workspace,
                               "destination": str(root), "format": media_format,
                               "quality": "192kbps" if media_format == "MP3" else "1080p以下", "fps": fps,
-                              "encoding_mode": mode, "tools": tools})
+                              "encoding_mode": mode, "interpolate": interpolate, "tools": tools})
             output = next(e["path"] for e in events if e["event"] == "done")
             result = subprocess.run([tools["ffprobe"], "-v", "error", "-show_streams", "-show_format", "-of", "json", output],
                                     capture_output=True, text=True, encoding="utf-8", check=True, creationflags=subprocess.CREATE_NO_WINDOW)
             info = json.loads(result.stdout)
+            if interpolate:
+                assert any(e.get("phase") == "フレーム補間中（CPU）" for e in events)
+                assert abs(float(info["format"]["duration"]) - 2) < .05
             codecs = {s["codec_name"] for s in info["streams"]}
             assert codecs == ({"h264", "aac"} if media_format == "MP4" else {"mp3"}), codecs
             if fps:
@@ -85,6 +89,8 @@ def main():
         url = f"http://127.0.0.1:{server.server_port}/fixture.mp4"
         results.append(check_download(url, "MP4", 30, "GPU優先"))
         results.append(check_download(url, "MP3"))
+        if args.interpolate:
+            results.append(check_download(url, "MP4", 60, "CPU高速", interpolate=True))
         if args.live:
             youtube = "https://www.youtube.com/watch?v=jNQXAC9IVRw"
             events = execute({"action": "discover", "urls": [{"url": youtube, "scope": "video"}], "tools": tools})

@@ -192,7 +192,7 @@ def encoder_args(encoder: str) -> list[str]:
 
 
 def conversion_args(source: Path, target: Path, metadata: dict, media_format: str, quality: str,
-                    fps: int | None = None, encoder: str = "libx264") -> list[str]:
+                    fps: int | None = None, encoder: str = "libx264", interpolate: bool = False) -> list[str]:
     streams = metadata.get("streams", [])
     audio = next((s for s in streams if s.get("codec_type") == "audio"), None)
     video = next((s for s in streams if s.get("codec_type") == "video" and not s.get("disposition", {}).get("attached_pic")), None)
@@ -210,13 +210,21 @@ def conversion_args(source: Path, target: Path, metadata: dict, media_format: st
         cap = {"1080p以下": 1080, "720p以下": 720}.get(quality)
         resize = cap is not None and video.get("height", 0) > cap
         change_fps = fps is not None and (stream_fps(video) is None or abs(stream_fps(video) - fps) > .001)
+        motion_filter = None
+        if interpolate:
+            from .interpolation import interpolation_filter
+            if fps != 60:
+                raise ValueError("フレーム補間の出力は60fpsです。")
+            motion_filter = interpolation_filter(stream_fps(video), float(metadata.get("format", {}).get("duration") or 0))
         compatible_video = video.get("codec_name") == "h264" and video.get("pix_fmt") in ("yuv420p", "yuvj420p") and not resize and not change_fps
         if compatible_video:
             args += ["-c:v", "copy"]
         else:
             args += encoder_args(encoder) + ["-pix_fmt", "yuv420p"]
             filters = [f"scale=-2:{cap}"] if resize else []
-            if change_fps:
+            if motion_filter:
+                filters.append(motion_filter)
+            elif change_fps:
                 filters.append(f"fps={fps}")
             filters.append("pad=ceil(iw/2)*2:ceil(ih/2)*2")
             args += ["-vf", ",".join(filters)]
@@ -289,10 +297,10 @@ def run_conversion(command: list[str], source: Path, duration: float, phase: str
 
 
 def convert(source: Path, target: Path, tools: dict, media_format: str, quality: str, fps: int | None = None,
-            encoding_mode: str = "自動（高速）"):
+            encoding_mode: str = "自動（高速）", interpolate: bool = False):
     metadata = probe(source, tools["ffprobe"])
     duration = float(metadata.get("format", {}).get("duration") or 0)
-    args = conversion_args(source, target, metadata, media_format, quality, fps)
+    args = conversion_args(source, target, metadata, media_format, quality, fps, interpolate=interpolate)
     encoder = "libx264"
     phase = "音声変換中" if media_format == "MP3" else "高速保存"
     needs_encode = "-c:v" in args and args[args.index("-c:v") + 1] != "copy"
@@ -300,8 +308,11 @@ def convert(source: Path, target: Path, tools: dict, media_format: str, quality:
         emit("progress", phase="GPUを確認中", percent=None)
         video = next(s for s in metadata["streams"] if s.get("codec_type") == "video" and not s.get("disposition", {}).get("attached_pic"))
         encoder = choose_encoder(tools["ffmpeg"], video, quality, fps, encoding_mode)
-        args = conversion_args(source, target, metadata, media_format, quality, fps, encoder)
+        args = conversion_args(source, target, metadata, media_format, quality, fps, encoder, interpolate)
         phase = "CPU変換中" if encoder == "libx264" else "GPU変換中"
+        if "minterpolate=" in " ".join(args):
+            phase = "フレーム補間中（CPU）"
+            emit("log", message="中間フレームを生成して60fpsにします。補間計算はCPUで実行します。")
         emit("log", message=f"映像変換: {encoder} / フレームレート: {str(fps) + 'fps' if fps else '元のまま'}")
     elif media_format == "MP4":
         emit("log", message="映像は再圧縮せず、高速保存します。")
@@ -314,7 +325,7 @@ def convert(source: Path, target: Path, tools: dict, media_format: str, quality:
             raise
         emit("log", message="GPU変換に失敗したため、CPU高速変換で再試行します。")
         target.unlink(missing_ok=True)
-        args = conversion_args(source, target, metadata, media_format, quality, fps, "libx264")
+        args = conversion_args(source, target, metadata, media_format, quality, fps, "libx264", interpolate)
         run_conversion([tools["ffmpeg"], *args], source, duration, "CPU変換中")
     output_info = probe(target, tools["ffprobe"])
     streams = output_info.get("streams", [])
@@ -389,7 +400,7 @@ def download(payload: dict):
     if len(sources) != 1:
         raise RuntimeError("取得した動画ファイルを特定できませんでした。")
     target = workspace / ("converted." + payload["format"].lower())
-    output_info = convert(sources[0], target, tools, payload["format"], payload["quality"], payload.get("fps"), payload.get("encoding_mode", "自動（高速）"))
+    output_info = convert(sources[0], target, tools, payload["format"], payload["quality"], payload.get("fps"), payload.get("encoding_mode", "自動（高速）"), payload.get("interpolate", False))
     if not detail.get("duration"):
         detail["duration"] = float(output_info.get("format", {}).get("duration") or 0) or None
         emit("download_detail", item=detail)

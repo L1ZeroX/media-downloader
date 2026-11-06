@@ -10,6 +10,12 @@ def apply_scrollbar_colors(app, root=None):
     base = CARD[int(app.dark_mode.get())]
     colors = (mix(base, accent, .65), mix(base, accent, .9))
     def visit(widget):
+        if isinstance(widget, ctk.CTkScrollbar) and not getattr(widget, "_pandora_deferred", False):
+            # CTk 6 flushes the entire Tk idle queue inside every scrollbar draw.
+            # Let the main event loop present the completed frame instead, especially
+            # while the appearance tracker is still updating sibling controls.
+            widget._canvas.update_idletasks = lambda: None
+            widget._pandora_deferred = True
         if isinstance(widget, ctk.CTkScrollbar) and getattr(widget, "_pandora_colors", None) != colors:
             widget.configure(button_color=colors[0], button_hover_color=colors[1], fg_color="transparent")
             widget._pandora_colors = colors

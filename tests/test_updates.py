@@ -15,6 +15,16 @@ def release(version, **overrides):
 
 
 class UpdateTests(unittest.TestCase):
+    def test_beta_is_opt_in_and_versions_compare_with_final_release(self):
+        beta = release("1.5.0-beta.1", prerelease=True)
+        stable = release("1.4.6")
+        self.assertEqual(newest_release([beta, stable], "1.4.5").version, "1.4.6")
+        self.assertEqual(newest_release([beta, stable], "1.4.5", beta=True).version, "1.5.0-beta.1")
+        self.assertIsNone(newest_release([beta], "1.5.0-beta.1", beta=True))
+        self.assertIsNotNone(newest_release([beta], "1.5.0-beta.1", beta=True, offer=True))
+        self.assertLess(version_number("1.5.0-beta.10"), version_number("1.5.0"))
+        self.assertGreater(version_number("1.5.0-beta.10"), version_number("1.5.0-beta.2"))
+
     def test_versions_are_numeric_and_validated(self):
         self.assertGreater(version_number("v1.10.0"), version_number("1.9.9"))
         for bad in ("v1", "1.2.x", "1.2.3-rc1", "../1.2.3", "1.2.3\n", None):

@@ -14,6 +14,48 @@ from downloader.window_shape import windows_api
 
 
 class GuiStateTests(unittest.TestCase):
+    def test_repeated_preview_reuses_decoded_image_and_completes_animation(self):
+        import base64, io
+        from PIL import Image, ImageTk
+        data=io.BytesIO(); Image.new("RGB",(160,90),"#426f92").save(data,format="PNG")
+        self.app.deiconify(); self.app.update()
+        self.add("cached")
+        self.app.items["cached"]["image"]=base64.b64encode(data.getvalue()).decode()
+        self.app.tree.selection_set("cached"); self.app.preview()
+        with patch("downloader.app.Image.open",wraps=Image.open) as decode:
+            self.app.preview()
+            deadline=time.monotonic()+.3
+            while time.monotonic()<deadline:
+                self.app.update(); time.sleep(.01)
+            self.app.preview()
+            decode.assert_not_called()
+        self.assertEqual(ImageTk.getimage(self.app.photo).getpixel((20,20))[:3],(66,111,146))
+
+    def test_theme_switch_finishes_glass_without_scroll_or_partial_paint(self):
+        from PIL import Image, ImageTk
+        self.app.animations_enabled.set(False)
+        self.app.deiconify(); self.app.update()
+        self.settings.panel_transparency = "55"
+        self.app.wallpaper.set_image(Image.new("RGB", (1200,1000), "#69407d"))
+        self.app.update(); self.app.wallpaper.paint()
+        painter = self.app.wallpaper
+        scroll = painter.outer._parent_canvas.yview()
+        states = []
+        original = painter._paint
+        def record():
+            states.append(painter.suspended)
+            return original()
+        for dark in (False, True, False):
+            with patch.object(painter, "_paint", side_effect=record):
+                self.app.dark_mode.set(dark); self.app.theme_changed()
+            self.assertEqual(painter.outer._parent_canvas.yview(), scroll)
+            for canvas in (self.app.queue_empty, self.app.queue_heading):
+                x,y = painter.viewport_position(canvas)
+                actual = ImageTk.getimage(painter.photos[canvas]).getpixel((5,5))[:3]
+                self.assertEqual(actual,painter._glass.getpixel((x+5,y+5)))
+            self.assertEqual(self.app.queue_heading.cget("bg"), "#191c23" if dark else "#ffffff")
+        self.assertNotIn(True, states)
+
     def test_delete_controls_clear_input_and_remove_only_checked_rows(self):
         for key in ("first", "second", "keep"):
             self.add(key)

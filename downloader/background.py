@@ -165,6 +165,7 @@ class Wallpaper:
         self._tile_keys = {}
         self._plain_key = None
         self._painting = False
+        self.suspended = False
         self._dirty = True
         self._last_state = None
         self._surfaces = []
@@ -283,7 +284,7 @@ class Wallpaper:
             self.timer = self.app.after(45, self.paint)
 
     def paint(self):
-        if self.closed or self._painting:
+        if self.closed or self._painting or self.suspended:
             return
         if self.timer is not None:
             self.app.after_cancel(self.timer)
@@ -363,11 +364,9 @@ class Wallpaper:
                 mask = Image.new("L", dimensions)
                 ImageDraw.Draw(mask).rounded_rectangle((0, 0, dimensions[0] - 1, dimensions[1] - 1), radius=rounded, fill=255)
                 tile.paste(layer, (0, 0), mask)
-            result = self.photos.get(widget)
-            if result is not None and (result.width(), result.height()) == tile.size:
-                result.paste(tile)
-            else:
-                result = ImageTk.PhotoImage(tile, master=app)
+            # Updating a displayed Tk photo with PIL.paste is expensive. Replace
+            # changed tiles; unchanged geometry still reuses the cached object.
+            result = ImageTk.PhotoImage(tile, master=app)
             self.photos[widget] = result
             self._tile_keys[widget] = tile_key
             return result

@@ -21,6 +21,10 @@ from .version import APP_NAME, VERSION
 
 
 class Application(ctk.CTk):
+    def _windows_set_titlebar_color(self, mode):
+        from .app_icon import set_titlebar_color
+        set_titlebar_color(self, mode)
+
     def __init__(self):
         set_app_identity()
         super().__init__()
@@ -71,7 +75,7 @@ class Application(ctk.CTk):
         self.after(80, self._poll)
         self.after(1200, self.check_updates)
 
-    def check_updates(self, manual=False):
+    def check_updates(self, manual=False, beta=False):
         if self._update_checking or self.closing:
             return
         self._update_checking = True
@@ -80,7 +84,7 @@ class Application(ctk.CTk):
         def run():
             try:
                 from .updates import check_for_update
-                update = check_for_update(VERSION)
+                update = check_for_update(VERSION, beta=True, offer=True) if beta else check_for_update(VERSION)
                 event = {"update": update, "message": f"利用可能な新しいバージョンはありません。現在 {VERSION}", "manual": manual}
             except Exception as error:
                 event = {"update": None, "message": "更新を確認できませんでした。通信状態を確認し、環境設定から再確認してください。", "error": str(error), "manual": manual}
@@ -154,7 +158,17 @@ class Application(ctk.CTk):
 
     def theme_changed(self):
         from .ui import apply_theme
-        apply_theme(self, transition=True)
+        painter = self.wallpaper
+        painter.suspended = True
+        try:
+            apply_theme(self, transition=True)
+            # Finish every native geometry/theme callback before compositing glass.
+            self.update_idletasks()
+        finally:
+            painter.suspended = False
+        painter._plain_key = None
+        painter._dirty = True
+        painter.paint()
         self.remember_settings()
 
     def choose_destination(self):
@@ -204,7 +218,7 @@ class Application(ctk.CTk):
         self.encoding_combo.configure(state="readonly" if not busy and self.media_format.get() == "MP4" else "disabled")
         self.stop_button.configure(state="normal" if busy else "disabled")
 
-    def _row(self, key):
+    def _row(self, key, count=True):
         item = self.items[key]
         values = ("☑" if item["selected"] else "☐", item["title"], item["site"], duration_text(item.get("duration")), item["state"])
         tag = "failed" if item["state"] == "失敗" else "done" if item["state"] == "完了" else ""
@@ -215,7 +229,8 @@ class Application(ctk.CTk):
             self.tree.insert("", "end", iid=key, values=values, tags=(tag,))
             from .ui import fit_queue
             fit_queue(self)
-        self._counts()
+        if count:
+            self._counts()
 
     def _counts(self):
         if self.mode == "download":
@@ -245,7 +260,8 @@ class Application(ctk.CTk):
     def select_items(self, selected):
         for key, item in self.items.items():
             item["selected"] = selected
-            self._row(key)
+            self._row(key, count=False)
+        self._counts()
 
     def remove_item(self):
         if self.mode:
@@ -265,11 +281,12 @@ class Application(ctk.CTk):
 
     def preview(self):
         from .preview_theme import apply_preview_colors
-        self._preview_generation = getattr(self, "_preview_generation", 0) + 1
-        generation = self._preview_generation
+        generation = getattr(self, "_preview_generation", 0)
         selection = self.tree.selection()
-        self.photo = None
         if not selection or selection[0] not in self.items:
+            self._preview_generation = generation + 1
+            self.photo = None
+            self._shown_preview_image_key = None
             apply_preview_colors(self)
             self.preview_image.configure(image="", text="動画を選択すると\nサムネイルを表示します", width=32, height=7)
             self.preview_title.configure(text="動画が選択されていません")
@@ -293,10 +310,18 @@ class Application(ctk.CTk):
         try:
             if not item.get("image"):
                 raise ValueError()
-            picture = Image.open(io.BytesIO(base64.b64decode(item["image"])))
-            picture.thumbnail((260, 147))
-            picture = picture.convert("RGB")
+            if getattr(self, "_preview_picture_key", None) != item["image"]:
+                with Image.open(io.BytesIO(base64.b64decode(item["image"]))) as source:
+                    source.thumbnail((260, 147))
+                    self._preview_picture = source.convert("RGB")
+                self._preview_picture_key = item["image"]
+            picture = self._preview_picture
             apply_preview_colors(self, picture, item["image"])
+            if getattr(self, "_shown_preview_image_key", None) == item["image"] and self.photo is not None:
+                return
+            generation += 1
+            self._preview_generation = generation
+            self._shown_preview_image_key = item["image"]
             background = Image.new("RGB", picture.size, "#262a33" if self.dark_mode.get() else "#f0f3f8")
             from .motion import animate
             def show(amount):
@@ -306,6 +331,9 @@ class Application(ctk.CTk):
                 self.preview_image.configure(image=self.photo, text="", width=260, height=147)
             animate(self, "thumbnail", .18, show)
         except Exception:
+            self._preview_generation = generation + 1
+            self.photo = None
+            self._shown_preview_image_key = None
             apply_preview_colors(self)
             self.preview_image.configure(image="", text="サムネイルを取得中…" if item["state"] == "情報取得中" else "サムネイルを取得できません", width=32, height=7)
 
@@ -367,8 +395,10 @@ class Application(ctk.CTk):
             return
         self.destination.set(str(destination))
         self.remember_settings()
-        fps = int(self.frame_rate.get().removesuffix("fps")) if self.frame_rate.get() != "元のまま" and self.media_format.get() == "MP4" else None
-        self.batch = {"destination": str(destination), "format": self.media_format.get(), "quality": self.quality.get(), "fps": fps, "encoding_mode": self.encoding_mode.get(), "tools": tools}
+        from .core import INTERPOLATED_FPS
+        interpolate = self.media_format.get() == "MP4" and self.frame_rate.get() == INTERPOLATED_FPS
+        fps = 60 if interpolate else int(self.frame_rate.get().removesuffix("fps")) if self.frame_rate.get() != "元のまま" and self.media_format.get() == "MP4" else None
+        self.batch = {"destination": str(destination), "format": self.media_format.get(), "quality": self.quality.get(), "fps": fps, "interpolate": interpolate, "encoding_mode": self.encoding_mode.get(), "tools": tools}
         self.pending = keys
         self.total = len(keys)
         self.completed = self.failed = 0

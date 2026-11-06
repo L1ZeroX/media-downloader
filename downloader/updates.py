@@ -22,21 +22,24 @@ class Update:
 
 
 def version_number(value):
-    match = re.fullmatch(r"v?(\d{1,9})\.(\d{1,9})\.(\d{1,9})", str(value))
-    return tuple(map(int, match.groups())) if match else None
+    match = re.fullmatch(r"v?(\d{1,9})\.(\d{1,9})\.(\d{1,9})(?:-beta\.(\d{1,9}))?", str(value))
+    return (*map(int, match.groups()[:3]), 0 if match[4] else 1, int(match[4] or 0)) if match else None
 
 
-def newest_release(releases, current):
+def newest_release(releases, current, beta=False, offer=False):
     installed = version_number(current)
     if installed is None or not isinstance(releases, list):
         raise ValueError("バージョン情報の形式が正しくありません。")
     candidates = []
     for release in releases:
-        if not isinstance(release, dict) or release.get("draft") or release.get("prerelease"):
+        if not isinstance(release, dict) or release.get("draft"):
             continue
         tag = release.get("tag_name", "")
+        is_beta = "-beta." in str(tag)
+        if is_beta != beta or (not beta and release.get("prerelease")):
+            continue
         number = version_number(tag)
-        if number is None or number <= installed:
+        if number is None or (not offer and number <= installed):
             continue
         version = tag.removeprefix("v")
         name = f"YoutubePandora-v{version}-Windows-x64.zip"
@@ -52,11 +55,13 @@ def newest_release(releases, current):
     return max(candidates, key=lambda item: item[0])[1] if candidates else None
 
 
-def check_for_update(current):
+def check_for_update(current, beta=None, offer=False):
+    if beta is None:
+        beta = "-beta." in current
     request = Request(API_URL, headers={"Accept": "application/vnd.github+json",
                       "User-Agent": f"YoutubePandora-Windows/{current}", "X-GitHub-Api-Version": "2022-11-28"})
     with urlopen(request, timeout=10, context=ssl.create_default_context(cafile=certifi.where())) as response:
         body = response.read(MAX_RESPONSE + 1)
     if len(body) > MAX_RESPONSE:
         raise ValueError("バージョン情報が大きすぎます。")
-    return newest_release(json.loads(body), current)
+    return newest_release(json.loads(body), current, beta=beta, offer=offer)

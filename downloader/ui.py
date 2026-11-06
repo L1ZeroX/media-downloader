@@ -197,7 +197,7 @@ def build(app):
     app.format_combo = setting(0, "形式", app.media_format, ("MP4", "MP3"), app.format_changed, 110)
     app.quality_combo = setting(1, "画質 / 音質", app.quality, VIDEO_QUALITIES if app.media_format.get() == "MP4" else AUDIO_QUALITIES,
                                 lambda _: app.remember_settings(), 150)
-    app.fps_combo = setting(2, "フレームレート", app.frame_rate, FRAME_RATES, lambda _: app.remember_settings(), 150)
+    app.fps_combo = setting(2, "フレームレート", app.frame_rate, FRAME_RATES, lambda _: app.remember_settings(), 210)
     app.encoding_combo = setting(3, "変換方式", app.encoding_mode, ENCODING_MODES, lambda _: app.remember_settings(), 170)
     if app.media_format.get() != "MP4":
         app.fps_combo.configure(state="disabled")
@@ -228,6 +228,9 @@ def build(app):
     app.log_box.grid(row=4, column=0, columnspan=2, sticky="ew", padx=16, pady=(4, 14))
     apply_theme(app)
     apply_layout(app)
+    from .version import IS_BETA
+    if IS_BETA:
+        label(settings_row, "フレーム補間は処理に時間がかかります。動きが崩れる場合があります。", size=11, color=MUTED).grid(row=2, column=0, columnspan=4, sticky="w", pady=(6, 0))
     app.wallpaper = Wallpaper(app, outer, [outer._parent_frame, headline, input_card, center, queue_card, card, controls, footer], header)
 
 
@@ -363,6 +366,10 @@ def environment(app):
         window.destroy()
         app.check_updates(manual=True)
     button(frame, "新しいバージョンを確認", check_updates, width=240).grid(row=16, column=0, columnspan=3, sticky="w", padx=20, pady=(8, 20))
+    def download_beta():
+        window.destroy()
+        app.check_updates(manual=True, beta=True)
+    button(frame, "ベータ版をダウンロード", download_beta, width=240).grid(row=17, column=0, columnspan=3, sticky="w", padx=20, pady=(0, 20))
     links = ctk.CTkFrame(actions, fg_color="transparent")
     links.pack(side="left")
     button(links, "FFmpeg", lambda: webbrowser.open("https://www.gyan.dev/ffmpeg/builds/"), width=95).pack(side="left")

@@ -9,12 +9,14 @@ import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
+from .version import IS_BETA
 
 ROOT = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent
-CONFIG_DIR = Path(os.environ.get("APPDATA", Path.home() / ".config")) / "SimpleMediaDownloader"
+CONFIG_DIR = Path(os.environ.get("APPDATA", Path.home() / ".config")) / ("SimpleMediaDownloaderBeta" if IS_BETA else "SimpleMediaDownloader")
 VIDEO_QUALITIES = ("1080p以下", "720p以下", "最高")
 AUDIO_QUALITIES = ("192kbps", "320kbps", "128kbps")
-FRAME_RATES = ("元のまま", "24fps", "30fps", "60fps")
+INTERPOLATED_FPS = "60fps（フレーム補間）"
+FRAME_RATES = ("元のまま", "24fps", "30fps", "60fps") + ((INTERPOLATED_FPS,) if IS_BETA else ())
 ENCODING_MODES = ("自動（高速）", "GPU優先", "CPU高速")
 URL_INPUT_HEIGHTS = {"コンパクト": 72, "標準": 112, "大きめ": 180}
 

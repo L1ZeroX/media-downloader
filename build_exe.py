@@ -9,12 +9,17 @@ import ssl
 from urllib.request import urlopen
 import certifi
 import argparse
-from downloader.version import APP_NAME, EXECUTABLE_NAME, VERSION
+import json
+from downloader.version import APP_NAME, EXECUTABLE_NAME, STABLE_VERSION, BETA_VERSION
 
 ROOT = Path(__file__).resolve().parent
 
 
-def main(dist_dir=None):
+def main(dist_dir=None, beta=False):
+    VERSION = BETA_VERSION if beta else STABLE_VERSION
+    channel = ROOT / "build" / "release_channel.json"
+    channel.parent.mkdir(exist_ok=True)
+    channel.write_text(json.dumps({"beta": beta}), encoding="utf-8")
     dist_dir = Path(dist_dir) if dist_dir is not None else ROOT / "dist"
     icon = ROOT / "assets" / "app.ico"
     if not icon.is_file():
@@ -28,6 +33,7 @@ def main(dist_dir=None):
         "--specpath", str(ROOT / "build"),
         "--icon", str(icon),
         "--add-data", str(ROOT / "assets") + ";assets",
+        "--add-data", str(channel) + ";.",
         "--collect-all", "customtkinter", "--collect-all", "yt_dlp", "--collect-all", "yt_dlp_ejs",
         "--copy-metadata", "yt-dlp", "--copy-metadata", "yt-dlp-ejs", "--copy-metadata", "customtkinter",
         "--hidden-import", "PIL._tkinter_finder", "--exclude-module", "pytest", "--exclude-module", "unittest",
@@ -85,7 +91,8 @@ def main(dist_dir=None):
         for path in sorted(destination.rglob("*")):
             if path.is_file():
                 bundle.write(path, Path(f"{EXECUTABLE_NAME}-v{VERSION}") / path.relative_to(destination))
-    shutil.copy2(archive, release / f"{EXECUTABLE_NAME}-Windows-x64.zip")
+    if not beta:
+        shutil.copy2(archive, release / f"{EXECUTABLE_NAME}-Windows-x64.zip")
     print(f"Portable EXE: {destination / (EXECUTABLE_NAME + '.exe')}")
     print(f"Distribution ZIP: {archive} ({archive.stat().st_size / 1024 / 1024:.1f} MB)")
 
@@ -93,4 +100,6 @@ def main(dist_dir=None):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--dist-dir", type=Path, help="Separate output directory when the previous EXE is running")
-    main(parser.parse_args().dist_dir)
+    parser.add_argument("--beta", action="store_true", help="Build the separate beta channel")
+    args = parser.parse_args()
+    main(args.dist_dir, args.beta)

@@ -27,6 +27,8 @@ def latest_apk(releases):
         if not isinstance(release, dict) or release.get("draft"):
             continue
         tag = release.get("tag_name", "")
+        if "-beta." in str(tag):
+            continue
         number = version_number(tag)
         if number is None:
             continue
