@@ -11,7 +11,7 @@ from .palette import BACKGROUND, CARD, TEXT, MUTED, INPUT, CONTROL, BUTTON, HOVE
 from .selectbox import SelectBox
 from .textmenu import TextMenu
 from .app_icon import set_window_icon
-from .background import Wallpaper, WallpaperFrame
+from .background import Wallpaper, WallpaperFrame, WallpaperLabel
 from .version import APP_NAME
 
 
@@ -27,7 +27,7 @@ def button(parent, text, command, *, primary=False, width=100, height=36):
 
 
 def label(parent, text="", size=14, bold=False, color=TEXT, **kwargs):
-    return ctk.CTkLabel(parent, text=text, font=(FONT, size, "bold" if bold else "normal"),
+    return WallpaperLabel(parent, text=text, font=(FONT, size, "bold" if bold else "normal"),
                         text_color=color, anchor="w", **kwargs)
 
 
@@ -121,8 +121,11 @@ def build(app):
         app.tree.heading(name, text=title)
         app.tree.column(name, width=width, minwidth=width if name != "title" else 120, stretch=name == "title", anchor="w" if name == "title" else "center")
     app.tree.grid(row=0, column=0, sticky="nsew")
+    app.queue_empty = tk.Canvas(table, highlightthickness=0, bd=0, height=0, bg=color(CARD, app))
+    app.queue_empty.grid(row=1, column=0, sticky="nsew")
+    table.bind("<Configure>", lambda _: fit_queue(app), add="+")
     scrollbar = ctk.CTkScrollbar(table, orientation="vertical", command=app.tree.yview, width=12, fg_color=CARD, button_color=("#d7dce5", "#3b4353"), button_hover_color=("#b9c5d8", "#57667f"))
-    scrollbar.grid(row=0, column=1, sticky="ns")
+    scrollbar.grid(row=0, column=1, rowspan=2, sticky="ns")
     app.tree.configure(yscrollcommand=scrollbar.set)
     app.tree.tag_configure("failed", foreground="#d23e4a")
     app.tree.tag_configure("done", foreground="#208d68")
@@ -207,6 +210,25 @@ def build(app):
     app.wallpaper = Wallpaper(app, outer, [outer._parent_frame, headline, input_card, center, queue_card, card, controls, footer], header)
 
 
+def fit_queue(app):
+    """Keep native rows/keyboard navigation; reveal glass in the unused list area."""
+    glass = (int(app.settings.panel_transparency) > 0 and app.wallpaper.source is not None
+             and int(app.settings.background_transparency) < 100) if hasattr(app, "wallpaper") else False
+    table = app.table_frame
+    if glass:
+        # Native headings consume about 36 px; row height is controlled by our style.
+        rows = min(len(app.items), max(0, (table.winfo_height() - 36) // 43))
+        if int(app.tree.cget("height")) != rows:
+            app.tree.configure(height=rows)
+        table.rowconfigure(0, weight=0)
+        table.rowconfigure(1, weight=1)
+    else:
+        table.rowconfigure(0, weight=1)
+        table.rowconfigure(1, weight=0)
+        if int(app.tree.cget("height")) != 4:
+            app.tree.configure(height=4)
+
+
 def apply_layout(app):
     """Resize existing widgets without disturbing input, selection or queue state."""
     app.url_input.configure(height=URL_INPUT_HEIGHTS[app.settings.url_input_size])
@@ -232,6 +254,7 @@ def apply_theme(app, transition=False):
     app.tree.tag_configure("failed", foreground="#ff8590" if app.dark_mode.get() else "#d23e4a")
     app.tree.tag_configure("done", foreground="#60d5a9" if app.dark_mode.get() else "#208d68")
     app.table_frame.configure(bg=color(CARD, app))
+    app.queue_empty.configure(bg=color(CARD, app))
     app.preview_image.configure(bg=color(THUMB, app), fg=color(MUTED, app))
     if transition:
         app.preview()
@@ -286,7 +309,7 @@ def environment(app):
     def edit_background():
         from .background_editor import BackgroundEditor
         BackgroundEditor(app, window)
-    button(frame, "画像・トリミング・透明度を設定", edit_background, width=300).grid(row=12, column=0, columnspan=3, sticky="w", padx=20, pady=8)
+    button(frame, "画像・トリミング・透過・ぼかし", edit_background, width=300).grid(row=12, column=0, columnspan=3, sticky="w", padx=20, pady=8)
     label(frame, "背景は専用画面の「適用」で保存します。元画像は変更しません。", size=12,
           color=MUTED).grid(row=13, column=0, columnspan=3, sticky="w", padx=20, pady=(0, 20))
     links = ctk.CTkFrame(actions, fg_color="transparent")

@@ -14,6 +14,61 @@ from downloader.window_shape import windows_api
 
 
 class GuiStateTests(unittest.TestCase):
+    def test_glass_scroll_cached_pixels_labels_and_restore(self):
+        from PIL import Image, ImageTk
+        from downloader import background, ui
+        self.app.deiconify()
+        self.app.update()
+        wallpaper = self.app.wallpaper
+        self.settings.panel_transparency = "55"
+        self.settings.background_transparency = "0"
+        wallpaper.set_image(Image.effect_noise((1200, 1000), 70).convert("RGB"))
+        self.add("first")
+        self.app.update()
+        wallpaper.paint()
+        with patch.object(background, "render", wraps=background.render) as render, \
+             patch.object(background, "glass_image", wraps=background.glass_image) as blur, \
+             patch.object(ImageTk.PhotoImage, "paste", autospec=True) as upload:
+            wallpaper.paint()
+            render.assert_not_called()
+            blur.assert_not_called()
+            upload.assert_not_called()
+        with patch.object(background, "render", wraps=background.render) as render, \
+             patch.object(background, "glass_image", wraps=background.glass_image) as blur:
+            for fraction in (1., 0., .5):
+                wallpaper.outer._parent_canvas.yview_moveto(fraction)
+                empty = self.app.queue_empty
+                x, y = wallpaper.viewport_position(empty)
+                actual = ImageTk.getimage(wallpaper.photos[empty]).getpixel((5, 5))[:3]
+                self.assertEqual(actual, wallpaper._glass.getpixel((x + 5, y + 5)))
+            render.assert_not_called()
+            blur.assert_not_called()
+        self.app.progress_text.set("GPU変換中 42.0%")
+        wallpaper.paint()
+        text = [str(label._canvas.itemcget("glass_text", "text")) for label in wallpaper._labels]
+        self.assertIn("GPU変換中 42.0%", text)
+        self.assertEqual(self.app.tree.cget("height"), 1)
+        for i in range(30):
+            self.add(str(i))
+        self.app.update()
+        self.app.tree.selection_set("29")
+        self.app.tree.see("29")
+        self.app.update_idletasks()
+        self.assertTrue(self.app.tree.bbox("29"))
+        self.app._space_check(None)
+        self.assertFalse(self.app.items["29"]["selected"])
+        self.app.dark_mode.set(False)
+        ui.apply_theme(self.app)
+        wallpaper.paint()
+        self.assertEqual(wallpaper._glass_key[0][-1], "#f3f4f6")
+        self.settings.panel_transparency = "0"
+        wallpaper.paint()
+        self.app.update_idletasks()
+        self.assertFalse(self.app.queue_empty.find_withtag("wallpaper"))
+        for label in wallpaper._labels:
+            self.assertFalse(label._canvas.find_withtag("glass_text"))
+        self.assertEqual(self.app.tree.cget("height"), 4)
+
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.settings = Settings(destination=self.directory.name)
@@ -56,15 +111,20 @@ class GuiStateTests(unittest.TestCase):
         self.assertAlmostEqual(dialog.crop[0], .3)
         self.assertAlmostEqual(dialog.crop[1], .25)
         dialog.fade_changed(65)
+        dialog.panel_fade.set(55)
+        dialog.panel_blur.set(24)
         with patch("downloader.background_editor.CONFIG_DIR", Path(self.directory.name)):
             dialog.apply()
         self.assertEqual(self.settings.background_transparency, "65")
+        self.assertEqual((self.settings.panel_transparency, self.settings.panel_blur), ("55", "24"))
         self.assertTrue(Path(self.settings.background_image).is_file())
         self.assertIsNotNone(self.app.wallpaper.source)
         saved = self.settings.background_image
         dialog = BackgroundEditor(self.app, self.app)
         dialog.clear()
+        dialog.panel_fade.set(5)
         dialog.cancel()
+        self.assertEqual(self.settings.panel_transparency, "55")
         self.assertEqual(self.settings.background_image, saved)
         self.app.theme_changed()
         self.app.wallpaper.paint()

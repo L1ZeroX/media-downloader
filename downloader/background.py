@@ -9,9 +9,26 @@ import tkinter as tk
 import warnings
 
 import customtkinter as ctk
-from PIL import Image, ImageOps, ImageTk, ImageStat
+from PIL import Image, ImageOps, ImageTk, ImageStat, ImageFilter, ImageDraw
 
-from .palette import BACKGROUND
+from .palette import BACKGROUND, CARD
+
+
+def bounded_int(value, low, high, default):
+    try:
+        return max(low, min(high, int(value)))
+    except (ValueError, TypeError, OverflowError):
+        return default
+
+
+def glass_image(picture, amount, radius, tint):
+    """Blur once at quarter resolution; scrolling only crops this cached surface."""
+    if radius:
+        small = picture.resize((max(1, picture.width // 4), max(1, picture.height // 4)), Image.Resampling.BILINEAR)
+        blurred = small.filter(ImageFilter.GaussianBlur(radius / 4)).resize(picture.size, Image.Resampling.BILINEAR)
+    else:
+        blurred = picture
+    return Image.blend(Image.new("RGB", picture.size, tint), blurred, amount / 100)
 
 
 def parse_crop(value):
@@ -86,6 +103,34 @@ class WallpaperFrame(ctk.CTkFrame):
             painter.schedule()
 
 
+class WallpaperLabel(ctk.CTkLabel):
+    """Keep native text geometry/accessibility, paint text over the glass canvas."""
+    def __init__(self, *args, **kwargs):
+        self._variable = kwargs.get("textvariable")
+        self._trace = None
+        super().__init__(*args, **kwargs)
+        if isinstance(self._variable, tk.Variable):
+            self._trace = self._variable.trace_add("write", self._changed)
+
+    def _changed(self, *args):
+        painter = getattr(self.winfo_toplevel(), "wallpaper", None)
+        if painter:
+            painter.schedule()
+
+    def _draw(self, no_color_updates=False):
+        super()._draw(no_color_updates)
+        self._changed()
+
+    def configure(self, **kwargs):
+        super().configure(**kwargs)
+        self._changed()
+
+    def destroy(self):
+        if self._trace:
+            self._variable.trace_remove("write", self._trace)
+        super().destroy()
+
+
 class Wallpaper:
     def __init__(self, app, outer, frames, header):
         self.app, self.outer, self.frames, self.header = app, outer, frames, header
@@ -96,6 +141,27 @@ class Wallpaper:
         self._scroll_updating = False
         self._picture_key = None
         self._picture = None
+        self._glass_key = None
+        self._glass = None
+        self._tile_keys = {}
+        self._plain_key = None
+        self._painting = False
+        self._dirty = True
+        self._last_state = None
+        self._surfaces = []
+        self._labels = []
+        self._cards = {frame for frame in frames if isinstance(frame, WallpaperFrame) and frame.cget("fg_color") != "transparent"}
+        def collect(widget, card=None):
+            if widget in self._cards:
+                card = widget
+            if card is not None and hasattr(widget, "_canvas"):
+                self._surfaces.append((widget, card))
+                if isinstance(widget, WallpaperLabel):
+                    self._labels.append(widget)
+            for child in widget.winfo_children():
+                if not isinstance(child, tk.Toplevel):
+                    collect(child, card)
+        collect(app)
         self.results = queue.Queue()
         self.root_label = tk.Label(app, bd=0)
         self.body_label = tk.Label(outer, bd=0)
@@ -145,11 +211,16 @@ class Wallpaper:
             if error:
                 self.app.log("背景画像を読み込めません。標準背景で起動しました: " + error)
             self.schedule()
+            from .ui import fit_queue
+            fit_queue(self.app)
 
     def set_image(self, image):
         self.replaced = True
         self.source = image
         self._picture_key = None
+        self._glass_key = None
+        from .ui import fit_queue
+        fit_queue(self.app)
         self.schedule()
 
     def on_destroy(self, event):
@@ -184,18 +255,49 @@ class Wallpaper:
         return widget.winfo_rootx() - self.app.winfo_rootx(), widget.winfo_rooty() - self.app.winfo_rooty()
 
     def schedule(self, event=None):
+        if event is not None and event.widget is not self.app and event.widget.winfo_toplevel() is not self.app:
+            return
+        self._dirty = True
         if not self.closed and self.timer is None:
             self.timer = self.app.after(45, self.paint)
 
     def paint(self):
+        if self.closed or self._painting:
+            return
         if self.timer is not None:
             self.app.after_cancel(self.timer)
             self.timer = None
+        settings = self.app.settings
+        state = (id(self.source), self.app.winfo_width(), self.app.winfo_height(),
+                 settings.background_crop, settings.background_transparency,
+                 settings.panel_transparency, settings.panel_blur, self.app.dark_mode.get(),
+                 self.outer._parent_canvas.canvasy(0))
+        if not self._dirty and self._last_state == state:
+            return
+        self._dirty = False
+        self._last_state = state
+        self._painting = True
+        try:
+            self._paint()
+        finally:
+            self._painting = False
+
+    def _paint(self):
         if self.closed:
             return
         app = self.app
         base = BACKGROUND[1 if app.dark_mode.get() else 0]
+        enabled = bool(self.source is not None and transparency(app.settings.background_transparency) < 100
+                       and bounded_int(app.settings.panel_transparency, 0, 85, 0))
+        if getattr(self, "_glass_enabled", None) != enabled:
+            self._glass_enabled = enabled
+            from .ui import fit_queue
+            fit_queue(app)
         if self.source is None or transparency(app.settings.background_transparency) == 100:
+            plain_key = (base, app.settings.panel_transparency)
+            if self._plain_key == plain_key:
+                return
+            self._plain_key = plain_key
             for label in (self.root_label, self.body_label):
                 label.configure(image="", bg=base)
             for frame in self.frames:
@@ -206,40 +308,86 @@ class Wallpaper:
             self.header.itemconfigure("heading", fill="#f1f3f7" if app.dark_mode.get() else "#15171b")
             self.header.itemconfigure("caption", fill="#c3cad6" if app.dark_mode.get() else "#505866")
             self.photos.clear()
+            self._tile_keys.clear()
+            self._restore_surfaces()
             return
+        self._plain_key = None
         size = (max(1, app.winfo_width()), max(1, app.winfo_height()))
         key = (id(self.source), size, app.settings.background_crop, app.settings.background_transparency, base)
         if self._picture_key != key:
             self._picture = render(self.source, size, app.settings.background_crop, app.settings.background_transparency, base)
             self._picture_key = key
         picture = self._picture
-        previous_photos = self.photos
-        self.photos = {}
+        amount = bounded_int(app.settings.panel_transparency, 0, 85, 0)
+        blur = bounded_int(app.settings.panel_blur, 0, 40, 18)
+        glass_key = (key, amount, blur)
+        if amount and self._glass_key != glass_key:
+            self._glass = glass_image(picture, amount, blur, CARD[1 if app.dark_mode.get() else 0])
+            self._glass_key = glass_key
 
-        def photo(widget):
+        def photo(widget, glass=False, rounded=None):
             x, y = self.viewport_position(widget)
-            tile = Image.new("RGB", (max(1, widget.winfo_width()), max(1, widget.winfo_height())), base)
+            dimensions = (max(1, widget.winfo_width()), max(1, widget.winfo_height()))
+            tile_key = (glass_key if glass else key, x, y, dimensions, rounded)
+            if self._tile_keys.get(widget) == tile_key:
+                return self.photos[widget]
+            tile = Image.new("RGB", dimensions, base)
             # paste clips automatically and fills offscreen portions with the theme color.
-            tile.paste(picture, (-x, -y))
-            result = previous_photos.get(widget)
+            tile.paste(self._glass if glass and rounded is None else picture, (-x, -y))
+            if glass and rounded is not None:
+                layer = Image.new("RGB", dimensions, CARD[1 if app.dark_mode.get() else 0])
+                layer.paste(self._glass, (-x, -y))
+                mask = Image.new("L", dimensions)
+                ImageDraw.Draw(mask).rounded_rectangle((0, 0, dimensions[0] - 1, dimensions[1] - 1), radius=rounded, fill=255)
+                tile.paste(layer, (0, 0), mask)
+            result = self.photos.get(widget)
             if result is not None and (result.width(), result.height()) == tile.size:
                 result.paste(tile)
             else:
                 result = ImageTk.PhotoImage(tile, master=app)
             self.photos[widget] = result
+            self._tile_keys[widget] = tile_key
             return result
 
         for label in (self.root_label, self.body_label):
             label.configure(image=photo(label), bg=base)
         for frame in self.frames:
             canvas = frame._canvas
+            is_glass = bool(amount and frame in self._cards)
+            radius = round(frame.cget("corner_radius") * frame._get_widget_scaling()) if is_glass else None
             if canvas.find_withtag("wallpaper"):
-                canvas.itemconfigure("wallpaper", image=photo(canvas))
+                canvas.itemconfigure("wallpaper", image=photo(canvas, is_glass, radius))
             else:
-                canvas.create_image(0, 0, anchor="nw", image=photo(canvas), tags="wallpaper")
+                canvas.create_image(0, 0, anchor="nw", image=photo(canvas, is_glass, radius), tags="wallpaper")
             canvas.tag_lower("wallpaper")
             # Transparent layout containers reveal the wallpaper; cards stay readable.
-            canvas.itemconfigure("inner_parts", state="hidden" if frame.cget("fg_color") == "transparent" else "normal")
+            canvas.itemconfigure("inner_parts", state="hidden" if is_glass or frame.cget("fg_color") == "transparent" else "normal")
+            canvas.itemconfigure("background_parts", state="hidden")
+        if amount:
+            for widget, card in self._surfaces:
+                if widget in self.frames or not widget.winfo_ismapped():
+                    continue
+                canvas = widget._canvas
+                if not canvas.winfo_ismapped():
+                    continue
+                if canvas.find_withtag("wallpaper"):
+                    canvas.itemconfigure("wallpaper", image=photo(canvas, True))
+                else:
+                    canvas.create_image(0, 0, anchor="nw", image=photo(canvas, True), tags="wallpaper")
+                canvas.tag_lower("wallpaper")
+                canvas.itemconfigure("background_parts", state="hidden")
+                if isinstance(widget, (ctk.CTkFrame, WallpaperLabel)) and widget.cget("fg_color") == "transparent":
+                    canvas.itemconfigure("inner_parts", state="hidden")
+                if isinstance(widget, WallpaperLabel):
+                    self._draw_label(widget)
+            empty = app.queue_empty
+            if empty.winfo_ismapped():
+                if empty.find_withtag("wallpaper"):
+                    empty.itemconfigure("wallpaper", image=photo(empty, True))
+                else:
+                    empty.create_image(0, 0, anchor="nw", image=photo(empty, True), tags="wallpaper")
+        else:
+            self._restore_surfaces()
         if self.header.find_withtag("wallpaper"):
             self.header.itemconfigure("wallpaper", image=photo(self.header))
         else:
@@ -252,3 +400,32 @@ class Wallpaper:
         bright = ImageStat.Stat(sample.convert("L")).mean[0] > 145
         self.header.itemconfigure("heading", fill="#15171b" if bright else "#f1f3f7")
         self.header.itemconfigure("caption", fill="#3b414b" if bright else "#e0e5ee")
+
+    def _draw_label(self, widget):
+        native, canvas = widget._label, widget._canvas
+        native.lower(canvas)
+        value = str(native.cget("text"))
+        signature = (value, native.winfo_x(), native.winfo_y(), native.winfo_width(), native.winfo_height(),
+                     str(native.cget("font")), str(native.cget("fg")), str(native.cget("wraplength")), str(native.cget("justify")))
+        if getattr(widget, "_glass_text_signature", None) == signature and canvas.find_withtag("glass_text"):
+            return
+        widget._glass_text_signature = signature
+        canvas.delete("glass_text")
+        canvas.create_text(native.winfo_x() + native.winfo_width() / 2, native.winfo_y() + native.winfo_height() / 2,
+                           text=value, font=native.cget("font"), fill=native.cget("fg"),
+                           width=native.cget("wraplength"), justify=native.cget("justify"), tags="glass_text")
+
+    def _restore_surfaces(self):
+        for widget, _ in self._surfaces:
+            if widget in self.frames:
+                continue
+            canvas = widget._canvas
+            canvas.delete("wallpaper", "glass_text")
+            canvas.itemconfigure("inner_parts", state="normal")
+            canvas.itemconfigure("background_parts", state="normal")
+            if isinstance(widget, WallpaperLabel):
+                widget._label.lift(canvas)
+            self.photos.pop(canvas, None)
+            self._tile_keys.pop(canvas, None)
+        if hasattr(self.app, "queue_empty"):
+            self.app.queue_empty.delete("wallpaper")

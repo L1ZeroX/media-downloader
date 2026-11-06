@@ -151,16 +151,21 @@ class Application(ctk.CTk):
         values = ("☑" if item["selected"] else "☐", item["title"], item["site"], duration_text(item.get("duration")), item["state"])
         tag = "failed" if item["state"] == "失敗" else "done" if item["state"] == "完了" else ""
         if self.tree.exists(key):
-            self.tree.item(key, values=values, tags=(tag,))
+            if tuple(map(str, self.tree.item(key, "values"))) != tuple(map(str, values)):
+                self.tree.item(key, values=values, tags=(tag,))
         else:
             self.tree.insert("", "end", iid=key, values=values, tags=(tag,))
+            from .ui import fit_queue
+            fit_queue(self)
         self._counts()
 
     def _counts(self):
         if self.mode == "download":
-            self.overall_text.set(f"全体 {self.completed + self.failed} / {self.total} 件処理済み  ·  完了 {self.completed}  /  失敗 {self.failed}")
+            value = f"全体 {self.completed + self.failed} / {self.total} 件処理済み  ·  完了 {self.completed}  /  失敗 {self.failed}"
         else:
-            self.overall_text.set(f"選択 {sum(item['selected'] for item in self.items.values())} / {len(self.items)} 件")
+            value = f"選択 {sum(item['selected'] for item in self.items.values())} / {len(self.items)} 件"
+        if self.overall_text.get() != value:
+            self.overall_text.set(value)
 
     def _click_check(self, event):
         if self.tree.identify_region(event.x, event.y) != "cell" or self.tree.identify_column(event.x) != "#1":
@@ -188,6 +193,8 @@ class Application(ctk.CTk):
         for key in self.tree.selection():
             del self.items[key]
             self.tree.delete(key)
+        from .ui import fit_queue
+        fit_queue(self)
         self._counts()
         self.preview()
 
@@ -366,8 +373,9 @@ class Application(ctk.CTk):
             parts += ["残り " + duration_text(event["eta"])]
         self.progress_text.set("  ·  ".join(parts))
         if self.current and self.mode == "download":
-            self.items[self.current]["state"] = phase
-            self._row(self.current)
+            if self.items[self.current]["state"] != phase:
+                self.items[self.current]["state"] = phase
+                self._row(self.current)
 
     def _reset_progress(self, text):
         self.progress.stop()

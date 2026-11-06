@@ -35,6 +35,8 @@ class Settings:
     background_image: str = ""
     background_crop: str = "0,0,1,1"
     background_transparency: str = "35"
+    panel_transparency: str = "0"
+    panel_blur: str = "18"
     ffmpeg: str = ""
     deno: str = ""
 
@@ -65,6 +67,9 @@ class Settings:
             from .background import parse_crop, transparency
             result.background_crop = ",".join(f"{v:g}" for v in parse_crop(result.background_crop))
             result.background_transparency = str(transparency(result.background_transparency))
+            from .background import bounded_int
+            result.panel_transparency = str(bounded_int(result.panel_transparency, 0, 85, 0))
+            result.panel_blur = str(bounded_int(result.panel_blur, 0, 40, 18))
             return result
         except (OSError, ValueError, TypeError, AttributeError):
             return cls()

@@ -4,11 +4,30 @@ from pathlib import Path
 
 from PIL import Image
 
-from downloader.background import parse_crop, transparency, render, load_image, store_image
+from downloader.background import parse_crop, transparency, render, load_image, store_image, glass_image
 from downloader.core import Settings
 
 
 class BackgroundTests(unittest.TestCase):
+    def test_glass_settings_and_softened_edges(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "settings.json"
+            path.write_text('{"panel_transparency":"999", "panel_blur":"-2"}')
+            settings = Settings.load(path)
+            self.assertEqual((settings.panel_transparency, settings.panel_blur), ("85", "0"))
+            path.write_text('{"panel_transparency":"nan", "panel_blur":"bad"}')
+            self.assertEqual(Settings.load(path), Settings())
+            settings.panel_transparency, settings.panel_blur = "55", "18"
+            settings.save(path)
+            self.assertEqual(Settings.load(path), settings)
+        image = Image.new("RGB", (100, 100), "black")
+        image.paste("white", (50, 0, 100, 100))
+        crisp = glass_image(image, 60, 0, "black")
+        soft = glass_image(image, 60, 18, "black")
+        self.assertEqual(glass_image(image, 0, 0, "#191c23").getpixel((50, 50)), (25, 28, 35))
+        self.assertGreater(soft.getpixel((45, 50))[0], crisp.getpixel((45, 50))[0])
+        self.assertLess(soft.getpixel((55, 50))[0], crisp.getpixel((55, 50))[0])
+
     def test_invalid_settings_and_roundtrip(self):
         for crop in ("nan,0,1,1", "0,0,0,1", "-1,0,1,1", "0,0,2,1", "broken", "0,0,1,1,2"):
             self.assertEqual(parse_crop(crop), (0, 0, 1, 1))

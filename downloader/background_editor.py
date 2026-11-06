@@ -8,7 +8,7 @@ import customtkinter as ctk
 from PIL import Image, ImageDraw, ImageTk
 
 from .app_icon import set_window_icon
-from .background import load_image, parse_crop, render, store_image, transparency
+from .background import load_image, parse_crop, render, store_image, transparency, bounded_int, glass_image
 from .core import CONFIG_DIR
 from .palette import BACKGROUND, CARD, TEXT, MUTED, BLUE, FONT
 from .ui import button, label, color
@@ -19,9 +19,9 @@ class BackgroundEditor(ctk.CTkToplevel):
         super().__init__(parent)
         self.app, self.parent = app, parent
         self.animations_enabled = app.animations_enabled
-        self.title("背景画像・トリミング")
+        self.title("背景画像・透過・ぼかし")
         set_window_icon(self)
-        width, height = min(960, self.winfo_screenwidth() - 80), min(720, self.winfo_screenheight() - 100)
+        width, height = min(960, self.winfo_screenwidth() - 80), min(820, self.winfo_screenheight() - 100)
         self.geometry(f"{width}x{height}")
         self.minsize(min(760, width), min(570, height))
         self.configure(fg_color=BACKGROUND)
@@ -31,6 +31,9 @@ class BackgroundEditor(ctk.CTkToplevel):
         self.source = app.wallpaper.source.copy() if app.wallpaper.source is not None else None
         self.crop = list(parse_crop(app.settings.background_crop))
         self.fade = tk.IntVar(value=transparency(app.settings.background_transparency))
+        self.panel_fade = tk.IntVar(value=bounded_int(app.settings.panel_transparency, 0, 85, 0))
+        self.panel_blur = tk.IntVar(value=bounded_int(app.settings.panel_blur, 0, 40, 18))
+        self._crop_preview_key = None
         self.status = tk.StringVar(value="四隅の丸をドラッグして範囲を変更。枠の内側をドラッグして移動できます。")
         self.results = queue.Queue()
         self.load_id = 0
@@ -75,8 +78,19 @@ class BackgroundEditor(ctk.CTkToplevel):
         self.slider.grid(row=0, column=1, sticky="ew", padx=8, pady=14)
         self.fade_label = label(settings, f"{self.fade.get()}%", size=13, width=54)
         self.fade_label.grid(row=0, column=2, padx=16)
-        label(settings, "0%＝画像を濃く表示 ／ 100%＝画像を非表示。操作パネルと文字は透過しません。", size=12,
-              color=MUTED, wraplength=width - 100).grid(row=1, column=0, columnspan=3, sticky="w", padx=16, pady=(0, 12))
+        for row, title, variable, maximum, unit in ((1, "パネルの透過率", self.panel_fade, 85, "%"),
+                                                   (2, "パネル背景のぼかし", self.panel_blur, 40, "")):
+            label(settings, title, size=13, bold=True).grid(row=row, column=0, padx=16, pady=8)
+            value_label = label(settings, f"{variable.get()}{unit}", size=13, width=54)
+            value_label.grid(row=row, column=2, padx=16)
+            def changed(value, variable=variable, value_label=value_label, unit=unit):
+                variable.set(round(value))
+                value_label.configure(text=f"{variable.get()}{unit}")
+                self.schedule()
+            ctk.CTkSlider(settings, from_=0, to=maximum, number_of_steps=maximum, variable=variable,
+                          command=changed, progress_color=BLUE).grid(row=row, column=1, sticky="ew", padx=8, pady=8)
+        label(settings, "パネル透過率 0%＝通常表示。背景画像があるときに有効です。\n入力欄・動画の行・ボタンは、文字を読みやすい濃さで表示します。", size=12,
+              color=MUTED, wraplength=width - 100).grid(row=3, column=0, columnspan=3, sticky="w", padx=16, pady=(4, 12))
         actions = ctk.CTkFrame(self, fg_color="transparent")
         actions.grid(row=5, column=0, sticky="ew", padx=24, pady=(0, 20))
         label(actions, "PNG / JPEG / WebP / BMP", size=12, color=MUTED).pack(side="left")
@@ -163,8 +177,11 @@ class BackgroundEditor(ctk.CTkToplevel):
             iw, ih = max(1, round(self.source.width * scale)), max(1, round(self.source.height * scale))
             ox, oy = (width - iw) / 2, (height - ih) / 2
             self.image_rect = (ox, oy, iw, ih)
-            image = self.source.resize((iw, ih), Image.Resampling.LANCZOS)
-            self.photo = ImageTk.PhotoImage(image, master=self)
+            crop_preview_key = (id(self.source), iw, ih)
+            if self._crop_preview_key != crop_preview_key:
+                image = self.source.resize((iw, ih), Image.Resampling.LANCZOS)
+                self.photo = ImageTk.PhotoImage(image, master=self)
+                self._crop_preview_key = crop_preview_key
             canvas.create_image(ox, oy, anchor="nw", image=self.photo)
             l, t, r, b = self.crop
             x1, y1, x2, y2 = ox + l * iw, oy + t * ih, ox + r * iw, oy + b * ih
@@ -177,10 +194,13 @@ class BackgroundEditor(ctk.CTkToplevel):
         aspect = max(1, self.app.winfo_width()) / max(1, self.app.winfo_height())
         w, h = max(1, min(pw - 12, int((ph - 12) * aspect))), max(1, min(ph - 12, int((pw - 12) / aspect)))
         image = render(self.source, (w, h), ",".join(map(str, self.crop)), self.fade.get(), color(BACKGROUND, self.app))
-        # Show opaque panel silhouettes so preview reflects the actual wallpaper visibility.
-        draw = ImageDraw.Draw(image)
+        amount = self.panel_fade.get() if self.source is not None and self.fade.get() < 100 else 0
+        surface = glass_image(image, amount, self.panel_blur.get() * w / max(1, self.app.winfo_width()), color(CARD, self.app))
+        mask = Image.new("L", (w, h))
+        draw = ImageDraw.Draw(mask)
         for top, bottom in ((.16, .35), (.38, .71), (.74, .96)):
-            draw.rounded_rectangle((w * .025, h * top, w * .975, h * bottom), radius=max(2, int(w * .02)), fill=color(CARD, self.app))
+            draw.rounded_rectangle((w * .025, h * top, w * .975, h * bottom), radius=max(2, int(w * .02)), fill=255)
+        image.paste(surface, (0, 0), mask)
         self.preview_photo = ImageTk.PhotoImage(image, master=self)
         self.preview.delete("all")
         self.preview.create_image(pw / 2, ph / 2, image=self.preview_photo)
@@ -240,14 +260,18 @@ class BackgroundEditor(ctk.CTkToplevel):
         if self.loading:
             return
         settings = self.app.settings
-        old = settings.background_image, settings.background_crop, settings.background_transparency
+        fields = ("background_image", "background_crop", "background_transparency", "panel_transparency", "panel_blur")
+        old = {field: getattr(settings, field) for field in fields}
         try:
             settings.background_image = store_image(self.source, CONFIG_DIR) if self.source is not None else ""
             settings.background_crop = ",".join(f"{v:.8f}" for v in self.crop)
             settings.background_transparency = str(self.fade.get())
+            settings.panel_transparency = str(self.panel_fade.get())
+            settings.panel_blur = str(self.panel_blur.get())
             settings.save()
         except (OSError, ValueError) as error:
-            settings.background_image, settings.background_crop, settings.background_transparency = old
+            for field, value in old.items():
+                setattr(settings, field, value)
             messagebox.showerror("背景を保存できません", str(error), parent=self)
             return
         self.app.wallpaper.set_image(self.source)
