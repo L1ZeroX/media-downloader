@@ -11,6 +11,7 @@ from .palette import BACKGROUND, CARD, TEXT, MUTED, INPUT, CONTROL, BUTTON, HOVE
 from .selectbox import SelectBox
 from .textmenu import TextMenu
 from .app_icon import set_window_icon
+from .background import Wallpaper, WallpaperFrame
 
 
 def color(value, app):
@@ -63,21 +64,22 @@ def build(app):
     outer.columnconfigure(0, weight=1)
     outer.rowconfigure(2, weight=1, minsize=280)
 
-    header = ctk.CTkFrame(outer, fg_color="transparent")
+    scale = outer._get_widget_scaling()
+    header = tk.Canvas(outer, height=round(96 * scale), highlightthickness=0, bd=0, bg=color(BACKGROUND, app))
     header.grid(row=0, column=0, sticky="ew", pady=(0, 20))
-    label(header, "MEDIA DOWNLOADER", size=11, bold=True, color=MUTED, height=18).pack(anchor="w")
-    headline = ctk.CTkFrame(header, fg_color="transparent")
-    headline.pack(fill="x", pady=(2, 0))
-    label(headline, "ダウンロード", size=34, bold=True).pack(side="left")
+    header.create_text(0, 5 * scale, text="MEDIA DOWNLOADER", anchor="nw", font=(FONT, -round(11 * scale), "bold"), tags="caption")
+    header.create_text(0, 24 * scale, text="ダウンロード", anchor="nw", font=(FONT, -round(34 * scale), "bold"), tags="heading")
+    header.create_text(0, 76 * scale, text="お気に入りの動画と音声を、ひとつの場所に。", anchor="nw", font=(FONT, -round(13 * scale)), tags="caption")
+    headline = WallpaperFrame(header, fg_color=CARD, corner_radius=22)
+    headline.place(relx=1, y=round(22 * scale), anchor="ne")
     app.tools_button = button(headline, "環境設定", app.environment, width=106)
-    app.tools_button.pack(side="right", pady=5)
+    app.tools_button.pack(side="right", padx=8, pady=8)
     app.theme_switch = ctk.CTkSwitch(headline, text="ダークモード", variable=app.dark_mode, command=app.theme_changed,
                                     progress_color=BLUE, fg_color=("#ccd3e0", "#454c5a"), button_color="white", button_hover_color="#e8edff",
                                     text_color=MUTED, font=(FONT, 12), switch_width=38, switch_height=22, width=145)
-    app.theme_switch.pack(side="right", padx=(0, 18), pady=5)
-    label(header, "お気に入りの動画と音声を、ひとつの場所に。", size=13, color=MUTED, height=18).pack(anchor="w", pady=(2, 0))
+    app.theme_switch.pack(side="right", padx=(16, 8), pady=8)
 
-    input_card = ctk.CTkFrame(outer, fg_color=CARD, corner_radius=24)
+    input_card = WallpaperFrame(outer, fg_color=CARD, corner_radius=24)
     input_card.grid(row=1, column=0, sticky="ew", pady=(0, 16))
     input_card.columnconfigure(0, weight=1)
     label(input_card, "リンクを追加", size=16, bold=True).grid(row=0, column=0, sticky="w", padx=20, pady=(14, 4))
@@ -90,11 +92,11 @@ def build(app):
     app.url_input.bind("<Control-Return>", lambda _: app.fetch())
     app.url_menu = TextMenu(app.url_input)
 
-    center = ctk.CTkFrame(outer, fg_color="transparent")
+    center = WallpaperFrame(outer, fg_color="transparent")
     center.grid(row=2, column=0, sticky="nsew", pady=(0, 16))
     center.columnconfigure(0, weight=1)
     center.rowconfigure(0, weight=1)
-    queue_card = ctk.CTkFrame(center, fg_color=CARD, corner_radius=24)
+    queue_card = WallpaperFrame(center, fg_color=CARD, corner_radius=24)
     app.queue_card = queue_card
     queue_card.grid(row=0, column=0, sticky="nsew", padx=(0, 16))
     queue_card.columnconfigure(0, weight=1)
@@ -127,7 +129,7 @@ def build(app):
     app.tree.bind("<space>", app._space_check)
     app.tree.bind("<<TreeviewSelect>>", lambda _: app.preview())
 
-    card = ctk.CTkFrame(center, fg_color=CARD, corner_radius=24, width=290)
+    card = WallpaperFrame(center, fg_color=CARD, corner_radius=24, width=290)
     app.preview_card = card
     card.grid(row=0, column=1, sticky="nsew")
     label(card, "プレビュー", size=14, bold=True).pack(anchor="w", padx=20, pady=(16, 10))
@@ -143,7 +145,7 @@ def build(app):
     app.preview_error = label(card, "", size=11, color=("#d23e4a", "#ff8590"), wraplength=250, justify="left")
     app.preview_error.pack(anchor="w", padx=20, pady=(4, 12))
 
-    controls = ctk.CTkFrame(outer, fg_color=CARD, corner_radius=24)
+    controls = WallpaperFrame(outer, fg_color=CARD, corner_radius=24)
     controls.grid(row=3, column=0, sticky="ew", pady=(0, 16))
     controls.columnconfigure(1, weight=1)
     label(controls, "保存設定", size=16, bold=True, height=22).grid(row=0, column=0, columnspan=2, sticky="w", padx=20, pady=(12, 8))
@@ -176,7 +178,7 @@ def build(app):
         app.fps_combo.configure(state="disabled")
         app.encoding_combo.configure(state="disabled")
 
-    footer = ctk.CTkFrame(app, fg_color=CARD, corner_radius=24)
+    footer = WallpaperFrame(app, fg_color=CARD, corner_radius=24)
     # Reserve the download controls before allocating space to the scrollable body.
     footer.pack(side="bottom", fill="x", padx=26, pady=(0, 20))
     outer.pack(fill="both", expand=True, padx=26, pady=(24, 16))
@@ -201,6 +203,7 @@ def build(app):
     app.log_box.grid(row=4, column=0, columnspan=2, sticky="ew", padx=16, pady=(4, 14))
     apply_theme(app)
     apply_layout(app)
+    app.wallpaper = Wallpaper(app, outer, [outer._parent_frame, headline, input_card, center, queue_card, card, controls, footer], header)
 
 
 def apply_layout(app):
@@ -231,6 +234,8 @@ def apply_theme(app, transition=False):
     app.preview_image.configure(bg=color(THUMB, app), fg=color(MUTED, app))
     if transition:
         app.preview()
+    if hasattr(app, "wallpaper"):
+        app.wallpaper.schedule()
 
 
 def environment(app):
@@ -276,6 +281,13 @@ def environment(app):
                       text_color=TEXT, progress_color=BLUE, font=(FONT, 13)).grid(row=row, column=0, columnspan=3, sticky="w", padx=20, pady=9)
     label(frame, "保存するとすぐに反映され、次回起動時にも引き継がれます。", size=12,
           color=MUTED).grid(row=10, column=0, columnspan=3, sticky="w", padx=20, pady=(8, 20))
+    label(frame, "背景画像", size=22, bold=True).grid(row=11, column=0, columnspan=3, sticky="w", padx=20, pady=(8, 8))
+    def edit_background():
+        from .background_editor import BackgroundEditor
+        BackgroundEditor(app, window)
+    button(frame, "画像・トリミング・透明度を設定", edit_background, width=300).grid(row=12, column=0, columnspan=3, sticky="w", padx=20, pady=8)
+    label(frame, "背景は専用画面の「適用」で保存します。元画像は変更しません。", size=12,
+          color=MUTED).grid(row=13, column=0, columnspan=3, sticky="w", padx=20, pady=(0, 20))
     links = ctk.CTkFrame(actions, fg_color="transparent")
     links.pack(side="left")
     button(links, "FFmpeg", lambda: webbrowser.open("https://www.gyan.dev/ffmpeg/builds/"), width=95).pack(side="left")

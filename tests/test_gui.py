@@ -39,6 +39,67 @@ class GuiStateTests(unittest.TestCase):
                             "title": "テスト " + key, "site": "test", "duration": None}})
         self.app.items[key]["state"] = "待機中"
 
+    def test_wallpaper_editor_apply_cancel_crop_and_reset(self):
+        from PIL import Image
+        from types import SimpleNamespace
+        from downloader.background_editor import BackgroundEditor
+        self.app.deiconify()
+        self.app.update()
+        dialog = BackgroundEditor(self.app, self.app)
+        dialog.source = Image.new("RGB", (400, 300), "blue")
+        dialog.crop = [.1, .1, .9, .9]
+        dialog.update()
+        dialog.draw()
+        ox, oy, iw, ih = dialog.image_rect
+        dialog.begin(SimpleNamespace(x=ox + .1 * iw, y=oy + .1 * ih))
+        dialog.end(SimpleNamespace(x=ox + .3 * iw, y=oy + .25 * ih))
+        self.assertAlmostEqual(dialog.crop[0], .3)
+        self.assertAlmostEqual(dialog.crop[1], .25)
+        dialog.fade_changed(65)
+        with patch("downloader.background_editor.CONFIG_DIR", Path(self.directory.name)):
+            dialog.apply()
+        self.assertEqual(self.settings.background_transparency, "65")
+        self.assertTrue(Path(self.settings.background_image).is_file())
+        self.assertIsNotNone(self.app.wallpaper.source)
+        saved = self.settings.background_image
+        dialog = BackgroundEditor(self.app, self.app)
+        dialog.clear()
+        dialog.cancel()
+        self.assertEqual(self.settings.background_image, saved)
+        self.app.theme_changed()
+        self.app.wallpaper.paint()
+        self.assertTrue(self.app.wallpaper.photos)
+        self.settings.background_transparency = "100"
+        self.app.wallpaper.paint()
+        self.app.update_idletasks()
+        self.assertFalse(self.app.wallpaper.photos)
+        self.assertIsNotNone(self.app.wallpaper.source)
+        self.settings.background_transparency = "0"
+        self.app.wallpaper.paint()
+        self.assertTrue(self.app.wallpaper.photos)
+        dialog = BackgroundEditor(self.app, self.app)
+        dialog.clear()
+        dialog.apply()
+        self.assertEqual(self.settings.background_image, "")
+        self.assertIsNone(self.app.wallpaper.source)
+        self.app.wallpaper.paint()
+        self.app.update_idletasks()
+
+    def test_wallpaper_failed_save_keeps_previous_settings(self):
+        from PIL import Image
+        from downloader.background_editor import BackgroundEditor
+        dialog = BackgroundEditor(self.app, self.app)
+        dialog.source = Image.new("RGB", (30, 30), "red")
+        old = self.settings.background_image
+        with patch("downloader.background_editor.CONFIG_DIR", Path(self.directory.name)), \
+             patch.object(Settings, "save", side_effect=OSError("read only")), \
+             patch("downloader.background_editor.messagebox.showerror") as error:
+            dialog.apply()
+            error.assert_called_once()
+        self.assertEqual(self.settings.background_image, old)
+        self.assertIsNone(self.app.wallpaper.source)
+        dialog.cancel()
+
     def test_selection_quality_memory_and_unknown_progress(self):
         self.add("first")
         self.add("second")

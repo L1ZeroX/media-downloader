@@ -32,6 +32,9 @@ class Settings:
     url_input_size: str = "標準"
     show_preview: str = "オン"
     show_log: str = "オン"
+    background_image: str = ""
+    background_crop: str = "0,0,1,1"
+    background_transparency: str = "35"
     ffmpeg: str = ""
     deno: str = ""
 
@@ -59,6 +62,9 @@ class Settings:
             for key in ("show_preview", "show_log"):
                 if getattr(result, key) not in ("オン", "オフ"):
                     setattr(result, key, "オン")
+            from .background import parse_crop, transparency
+            result.background_crop = ",".join(f"{v:g}" for v in parse_crop(result.background_crop))
+            result.background_transparency = str(transparency(result.background_transparency))
             return result
         except (OSError, ValueError, TypeError, AttributeError):
             return cls()
