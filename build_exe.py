@@ -8,12 +8,14 @@ import importlib.metadata
 import ssl
 from urllib.request import urlopen
 import certifi
+import argparse
 from downloader.version import APP_NAME, EXECUTABLE_NAME, VERSION
 
 ROOT = Path(__file__).resolve().parent
 
 
-def main():
+def main(dist_dir=None):
+    dist_dir = Path(dist_dir) if dist_dir is not None else ROOT / "dist"
     icon = ROOT / "assets" / "app.ico"
     if not icon.is_file():
         raise FileNotFoundError(f"Window icon not found: {icon}")
@@ -22,7 +24,7 @@ def main():
             raise RuntimeError("Run setup.bat before building: missing " + name)
     subprocess.run([
         sys.executable, "-m", "PyInstaller", "--noconfirm", "--onedir", "--console", "--hide-console", "hide-early",
-        "--name", EXECUTABLE_NAME, "--distpath", str(ROOT / "dist" / f"v{VERSION}"), "--workpath", str(ROOT / "build"),
+        "--name", EXECUTABLE_NAME, "--distpath", str(dist_dir / f"v{VERSION}"), "--workpath", str(ROOT / "build"),
         "--specpath", str(ROOT / "build"),
         "--icon", str(icon),
         "--add-data", str(ROOT / "assets") + ";assets",
@@ -31,7 +33,7 @@ def main():
         "--hidden-import", "PIL._tkinter_finder", "--exclude-module", "pytest", "--exclude-module", "unittest",
         str(ROOT / "main.py"),
     ], cwd=ROOT, check=True)
-    destination = ROOT / "dist" / f"v{VERSION}" / EXECUTABLE_NAME
+    destination = dist_dir / f"v{VERSION}" / EXECUTABLE_NAME
     shutil.copytree(ROOT / "tools", destination / "tools", dirs_exist_ok=True)
     deno_version = subprocess.check_output([str(destination / "tools" / "deno.exe"), "--version"], text=True).split()[1]
     with urlopen(f"https://raw.githubusercontent.com/denoland/deno/v{deno_version}/LICENSE.md",
@@ -89,4 +91,6 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dist-dir", type=Path, help="Separate output directory when the previous EXE is running")
+    main(parser.parse_args().dist_dir)

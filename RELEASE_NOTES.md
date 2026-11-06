@@ -6,6 +6,7 @@ Windows 10/11（64bit）向けの日本語動画・音声ダウンローダー�
 
 - アプリ名を「Media Downloader」から「Youtube Pandora!」に変更
 - ウィンドウタイトル・画面内の名前・EXE名・配布ZIP名を統一
+- ウィンドウタイトルは「Youtube Pandora! 1.2.0」のみに整理
 - EXE名は`YoutubePandora.exe`。保存先・背景画像などの既存設定は引き継ぎます
 
 ## 背景画像のカスタマイズ

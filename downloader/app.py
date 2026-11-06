@@ -24,7 +24,7 @@ class Application(ctk.CTk):
         set_app_identity()
         super().__init__()
         set_window_icon(self)
-        self.title(f"{APP_NAME} {VERSION} — yt-dlp")
+        self.title(f"{APP_NAME} {VERSION}")
         width = min(1200, self.winfo_screenwidth() - 80)
         height = min(940, self.winfo_screenheight() - 100)
         self.compact_layout = height < 900
