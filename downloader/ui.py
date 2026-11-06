@@ -86,8 +86,12 @@ def build(app):
     input_card = WallpaperFrame(outer, fg_color=CARD, corner_radius=24)
     input_card.grid(row=1, column=0, sticky="ew", pady=(0, 16))
     input_card.columnconfigure(0, weight=1)
-    app.paste_button = button(input_card, "リンクを追加", app.paste_links, primary=True, width=144, height=36)
-    app.paste_button.grid(row=0, column=0, sticky="w", padx=16, pady=(14, 8))
+    link_actions = ctk.CTkFrame(input_card, fg_color="transparent")
+    link_actions.grid(row=0, column=0, sticky="w", padx=16, pady=(14, 8))
+    app.paste_button = button(link_actions, "リンクを追加", app.paste_links, primary=True, width=144, height=36)
+    app.paste_button.pack(side="left")
+    app.clear_links_button = button(link_actions, "リンクを削除", app.clear_links, primary=True, width=124, height=36)
+    app.clear_links_button.pack(side="left", padx=(8, 0))
     label(input_card, "1行に1つのURL · プレイリスト対応", size=12, color=MUTED).grid(row=0, column=1, sticky="e", padx=20, pady=(14, 4))
     app.url_input = ctk.CTkTextbox(input_card, height=URL_INPUT_HEIGHTS[app.settings.url_input_size], wrap="none", corner_radius=14, border_width=0,
                                   fg_color=INPUT, text_color=TEXT, font=(FONT, 13), activate_scrollbars=True)
@@ -109,12 +113,12 @@ def build(app):
     toolbar = ctk.CTkFrame(queue_card, fg_color="transparent")
     toolbar.grid(row=0, column=0, sticky="ew", padx=18, pady=(14, 4))
     label(toolbar, "保存する動画", size=16, bold=True).pack(side="left", padx=(0, 12))
+    app.remove_button = button(toolbar, "動画を削除", app.remove_item, width=100, height=30)
+    app.remove_button.pack(side="left", padx=(0, 12))
     app.select_all = button(toolbar, "全選択", lambda: app.select_items(True), width=65, height=30)
     app.select_all.pack(side="left", padx=(0, 6))
     app.select_none = button(toolbar, "解除", lambda: app.select_items(False), width=55, height=30)
     app.select_none.pack(side="left")
-    app.remove_button = button(toolbar, "行を削除", app.remove_item, width=80, height=30)
-    app.remove_button.pack(side="right")
     table = tk.Frame(queue_card, bg=color(CARD, app))
     app.table_frame = table
     table.grid(row=1, column=0, sticky="nsew", padx=14, pady=(0, 14))
@@ -293,7 +297,7 @@ def apply_action_colors(app):
     app._action_colors = colors
     foreground, hover, text = colors
     app.progress.configure(progress_color=foreground)
-    for widget in (app.fetch_button, app.start_button, app.paste_button, app.android_button):
+    for widget in (app.fetch_button, app.start_button, app.paste_button, app.clear_links_button, app.android_button):
         job = getattr(widget, "_motion_jobs", {}).pop("hover", None)
         if job:
             widget.after_cancel(job)

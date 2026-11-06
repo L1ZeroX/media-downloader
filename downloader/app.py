@@ -179,6 +179,12 @@ class Application(ctk.CTk):
         editor.see("insert")
         editor.focus_set()
 
+    def clear_links(self):
+        if self.mode:
+            return
+        self.url_input.delete("1.0", "end")
+        self.url_input.focus_set()
+
     def open_destination(self):
         path = Path(self.destination.get()).expanduser()
         try:
@@ -190,7 +196,7 @@ class Application(ctk.CTk):
     def _busy(self, busy):
         state = "disabled" if busy else "normal"
         for widget in (self.fetch_button, self.start_button, self.retry_button, self.browse_button, self.tools_button,
-                       self.select_all, self.select_none, self.remove_button, self.destination_entry):
+                       self.select_all, self.select_none, self.remove_button, self.clear_links_button, self.destination_entry):
             widget.configure(state=state)
         self.format_combo.configure(state="disabled" if busy else "readonly")
         self.quality_combo.configure(state="disabled" if busy else "readonly")
@@ -242,13 +248,20 @@ class Application(ctk.CTk):
             self._row(key)
 
     def remove_item(self):
-        for key in self.tree.selection():
+        if self.mode:
+            return
+        keys = [key for key, item in self.items.items() if item["selected"]]
+        if not keys:
+            self.log("削除する動画の保存チェックを入れてください。")
+            return
+        for key in keys:
             del self.items[key]
             self.tree.delete(key)
         from .ui import fit_queue
         fit_queue(self)
         self._counts()
         self.preview()
+        self.log(f"{len(keys)}件を一覧から削除しました。")
 
     def preview(self):
         from .preview_theme import apply_preview_colors

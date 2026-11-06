@@ -14,6 +14,39 @@ from downloader.window_shape import windows_api
 
 
 class GuiStateTests(unittest.TestCase):
+    def test_delete_controls_clear_input_and_remove_only_checked_rows(self):
+        for key in ("first", "second", "keep"):
+            self.add(key)
+        saved = Path(self.directory.name) / "saved.mp4"
+        saved.write_bytes(b"saved video")
+        self.app.items["first"].update(state="完了", path=str(saved))
+        self.app.items["keep"]["selected"] = False
+        self.app.tree.selection_set("keep")
+        self.app.url_input.insert("1.0", "https://example.com/a\nhttps://example.com/b")
+        self.app.clear_links_button.invoke()
+        self.assertEqual(self.app.url_input.get("1.0", "end-1c"), "")
+        self.assertEqual(len(self.app.items), 3)
+        self.app.remove_button.invoke()
+        self.assertEqual(list(self.app.items), ["keep"])
+        self.assertEqual(self.app.tree.get_children(), ("keep",))
+        self.assertEqual(saved.read_bytes(), b"saved video")
+        self.app.remove_button.invoke()
+        self.assertEqual(list(self.app.items), ["keep"])
+
+    def test_delete_controls_leave_active_work_intact(self):
+        self.add("active")
+        self.app.url_input.insert("1.0", "https://example.com/a")
+        for mode in ("discover", "download"):
+            self.app.mode = mode
+            self.app._busy(True)
+            self.assertEqual(self.app.clear_links_button.cget("state"), "disabled")
+            self.assertEqual(self.app.remove_button.cget("state"), "disabled")
+            self.app.clear_links(); self.app.remove_item()
+            self.assertIn("active", self.app.items)
+            self.assertEqual(self.app.url_input.get("1.0", "end-1c"), "https://example.com/a")
+        self.app.mode = ""
+        self.app._busy(False)
+
     def test_android_qr_offline_uses_public_release_page(self):
         from PIL import Image
         from downloader import android_qr
